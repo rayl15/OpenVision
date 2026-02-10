@@ -1,8 +1,14 @@
-# OpenVision 👓
+<p align="center">
+  <img src="docs/images/banner.jpg" alt="OpenVision Banner" width="100%"/>
+</p>
 
-The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants.
+<h1 align="center">OpenVision</h1>
 
-> **Your glasses. Your AI. Your rules.**
+<p align="center">
+  The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants.
+  <br/>
+  <strong>Your glasses. Your AI. Your rules.</strong>
+</p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Swift 5](https://img.shields.io/badge/Swift-5-orange.svg)](https://swift.org)
