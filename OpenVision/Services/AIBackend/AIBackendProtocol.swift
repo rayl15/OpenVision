@@ -1,32 +1,7 @@
 // OpenVision - AIBackendProtocol.swift
-// Common interface for AI backends (OpenClaw, Gemini Live)
+// Common types for AI backends (OpenClaw, Gemini Live)
 
 import Foundation
-
-/// Protocol defining the interface for AI backends
-@MainActor
-protocol AIBackendProtocol: ObservableObject {
-    /// Current connection state
-    var connectionState: AIConnectionState { get }
-
-    /// Whether the backend is currently processing a request
-    var isProcessing: Bool { get }
-
-    /// Connect to the AI backend
-    func connect() async throws
-
-    /// Disconnect from the AI backend
-    func disconnect() async
-
-    /// Send a text message to the AI
-    func sendMessage(_ text: String) async throws
-
-    /// Send a message with an image
-    func sendMessage(_ text: String, imageData: Data?) async throws
-
-    /// Cancel any ongoing request
-    func cancelRequest()
-}
 
 /// Connection state for AI backends
 enum AIConnectionState: Equatable, CustomStringConvertible {
@@ -80,30 +55,6 @@ enum AIConnectionState: Equatable, CustomStringConvertible {
         case .failed: return "red"
         }
     }
-}
-
-/// Events emitted by AI backends
-enum AIBackendEvent {
-    /// Agent started/stopped processing
-    case processingChanged(Bool)
-
-    /// Agent sent a text response
-    case agentMessage(String)
-
-    /// User's speech was transcribed
-    case userTranscription(String)
-
-    /// Tool execution status changed
-    case toolStatus(name: String?, isRunning: Bool)
-
-    /// Audio data received (for Gemini Live)
-    case audioReceived(Data)
-
-    /// Connection state changed
-    case connectionStateChanged(AIConnectionState)
-
-    /// Error occurred
-    case error(Error)
 }
 
 /// Errors specific to AI backends

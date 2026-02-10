@@ -975,7 +975,9 @@ struct VoiceAgentView: View {
                 // Check for stop video commands in what the user said
                 let lowerText = text.lowercased()
                 let stopKeywords = ["stop video", "stop streaming", "stop live", "end video",
-                                   "exit video", "disable video", "stop the video", "end live"]
+                                   "exit video", "disable video", "stop the video", "end live",
+                                   // Hindi fallbacks (Gemini sometimes transcribes English as Hindi)
+                                   "स्टॉप", "वीडियो बंद", "बंद करो", "रुको"]
 
                 let isStopCommand = stopKeywords.contains { lowerText.contains($0) }
 

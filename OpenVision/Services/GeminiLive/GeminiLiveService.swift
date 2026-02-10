@@ -370,6 +370,14 @@ final class GeminiLiveService: ObservableObject {
             return
         }
 
+        // Input transcription (user's speech) - can come at root level
+        if let inputTranscription = json["inputTranscription"] as? [String: Any],
+           let text = inputTranscription["text"] as? String, !text.isEmpty {
+            print("[GeminiLive] User said: \(text)")
+            onInputTranscription?(text)
+            return
+        }
+
         // Tool call
         if let toolCall = json["toolCall"] as? [String: Any] {
             handleToolCall(toolCall)
