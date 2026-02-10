@@ -1,0 +1,27 @@
+// OpenVision Runtime Configuration
+// Copy this file to Config.swift
+// These are OPTIONAL defaults - users can configure everything in-app
+
+import Foundation
+
+enum Config {
+    // MARK: - Optional Default API Keys
+    // Leave empty to require in-app configuration (recommended for open source)
+
+    /// Default OpenClaw gateway URL (empty = must configure in app)
+    static let defaultOpenClawGatewayURL = ""
+
+    /// Default OpenClaw auth token (empty = must configure in app)
+    static let defaultOpenClawAuthToken = ""
+
+    /// Default Gemini API key (empty = must configure in app)
+    static let defaultGeminiAPIKey = ""
+
+    // MARK: - App Constants
+
+    /// App version for display
+    static let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+
+    /// Build number
+    static let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+}

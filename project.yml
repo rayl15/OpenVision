@@ -1,0 +1,91 @@
+name: OpenVision
+options:
+  bundleIdPrefix: com.openvision
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Automatic
+    INFOPLIST_FILE: OpenVision/Resources/Info.plist
+    PRODUCT_BUNDLE_IDENTIFIER: ${PRODUCT_BUNDLE_IDENTIFIER}
+    META_APP_ID: ${META_APP_ID}
+    CLIENT_TOKEN: ${CLIENT_TOKEN}
+    APP_LINK_URL_SCHEME: ${APP_LINK_URL_SCHEME}
+
+configs:
+  Debug:
+    settings:
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+  Release:
+    settings:
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+
+configFiles:
+  Debug: Config.xcconfig
+  Release: Config.xcconfig
+
+targets:
+  OpenVision:
+    type: application
+    platform: iOS
+    sources:
+      - path: OpenVision
+        excludes:
+          - "**/*.example"
+    resources:
+      - path: OpenVision/Resources
+        excludes:
+          - "**/*.plist"
+    settings:
+      base:
+        INFOPLIST_FILE: OpenVision/Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: $(PRODUCT_BUNDLE_IDENTIFIER)
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: false
+        ENABLE_PREVIEWS: true
+    dependencies:
+      - package: meta-wearables-dat-ios
+        products:
+          - MWDATCore
+          - MWDATCamera
+    preBuildScripts:
+      - name: "Check Config Files"
+        script: |
+          if [ ! -f "${PROJECT_DIR}/Config.xcconfig" ]; then
+            echo "error: Config.xcconfig not found. Copy Config.xcconfig.example to Config.xcconfig"
+            exit 1
+          fi
+        basedOnDependencyAnalysis: false
+
+packages:
+  meta-wearables-dat-ios:
+    url: https://github.com/facebook/meta-wearables-dat-ios
+    from: 0.4.0
+
+schemes:
+  OpenVision:
+    build:
+      targets:
+        OpenVision: all
+    run:
+      config: Debug
+      commandLineArguments:
+        "-FIRDebugEnabled": false
+    test:
+      config: Debug
+      gatherCoverageData: true
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

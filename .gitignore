@@ -1,0 +1,71 @@
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Config files with secrets (use .example versions)
+Config.xcconfig
+OpenVision/Config/Config.swift
+
+# CocoaPods
+Pods/
+Podfile.lock
+*.xcworkspace
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Carthage
+Carthage/Build/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Thumbnails
+Thumbs.db
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Build outputs
+build/
+*.app
+
+# Archives
+*.xcarchive
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Testing
+*.coverage
+*.profraw
+*.profdata
+
+# Crashlytics
+crashlytics-build.properties
+fabric.properties
+
+# Claude Code
+.claude/

@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Information -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>OpenVision</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <!-- Supported Orientations -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- Launch Screen -->
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string>LaunchBackground</string>
+    </dict>
+
+    <!-- URL Schemes for Meta AI Callback -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLName</key>
+            <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>$(APP_LINK_URL_SCHEME)</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Queried URL Schemes (Meta AI app) -->
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>fb-viewapp</string>
+    </array>
+
+    <!-- Required Device Capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>armv7</string>
+        <string>microphone</string>
+    </array>
+
+    <!-- Background Modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+        <string>processing</string>
+        <string>bluetooth-central</string>
+        <string>bluetooth-peripheral</string>
+        <string>external-accessory</string>
+    </array>
+
+    <!-- External Accessory protocol for Meta Wearables -->
+    <key>UISupportedExternalAccessoryProtocols</key>
+    <array>
+        <string>com.meta.ar.wearable</string>
+    </array>
+
+    <!-- Privacy - Usage Descriptions -->
+
+    <!-- Microphone for voice input -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>OpenVision needs microphone access to hear your voice commands and have conversations with the AI assistant.</string>
+
+    <!-- Camera for photo capture -->
+    <key>NSCameraUsageDescription</key>
+    <string>OpenVision uses the camera to capture photos that the AI can analyze and describe.</string>
+
+    <!-- Speech recognition for wake word detection -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>OpenVision uses speech recognition to detect your wake word ("Hey Vision") and transcribe your voice commands.</string>
+
+    <!-- Bluetooth for glasses connection -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>OpenVision connects to your Meta Ray-Ban glasses via Bluetooth to access the camera and microphone.</string>
+
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>OpenVision connects to your Meta Ray-Ban glasses via Bluetooth.</string>
+
+    <!-- Photo Library for saving captured images -->
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>OpenVision can save captured photos to your photo library.</string>
+
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>OpenVision can access your photo library to share images with the AI.</string>
+
+    <!-- Location (if needed for context) -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>OpenVision can use your location to provide location-aware responses.</string>
+
+    <!-- App Transport Security (allow WebSocket connections) -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+
+    <!-- Wearables Device Access Toolkit configuration -->
+    <key>MWDAT</key>
+    <dict>
+        <key>MetaAppID</key>
+        <string>$(META_APP_ID)</string>
+        <key>AppLinkURLScheme</key>
+        <string>$(APP_LINK_URL_SCHEME)://</string>
+        <key>ClientToken</key>
+        <string>$(CLIENT_TOKEN)</string>
+        <key>TeamID</key>
+        <string>$(DEVELOPMENT_TEAM)</string>
+    </dict>
+
+    <!-- Appearance -->
+    <key>UIUserInterfaceStyle</key>
+    <string>Dark</string>
+
+    <!-- Status Bar -->
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleLightContent</string>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <true/>
+</dict>
+</plist>
