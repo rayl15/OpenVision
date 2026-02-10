@@ -33,6 +33,9 @@ struct VoiceAgentView: View {
     /// Live Video Mode - uses Gemini Live for real-time audio + video
     @State private var isLiveVideoMode = false
 
+    /// True when voice recognition is ready (audio engine running)
+    @State private var isVoiceReady = false
+
     // MARK: - Agent State
 
     enum AgentState: Equatable {
@@ -246,10 +249,22 @@ struct VoiceAgentView: View {
         VStack(spacing: 32) {
             // Status hints
             if agentState == .idle && settingsManager.settings.wakeWordEnabled {
-                Text("Say \"\(settingsManager.settings.wakeWord)\" to start")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.6))
+                if isVoiceReady {
+                    Text("Say \"\(settingsManager.settings.wakeWord)\" to start")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.6))
+                        .transition(.opacity)
+                } else {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.8)
+                        Text("Initializing voice...")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.6))
+                    }
                     .transition(.opacity)
+                }
             } else if agentState == .liveVideo {
                 VStack(spacing: 4) {
                     Text("Gemini Live")
@@ -553,10 +568,23 @@ struct VoiceAgentView: View {
     private func setupVoiceCommandService() {
         print("[VoiceAgentView] Setting up voice command callbacks")
 
+        // Allow wake word to interrupt TTS (for "ok vision stop")
+        voiceCommandService.shouldAllowInterrupt = { [weak ttsService] in
+            return ttsService?.isSpeaking ?? false
+        }
+
         // Wake word detected
         voiceCommandService.onWakeWordDetected = {
             print("[VoiceAgentView] Wake word detected!")
             HapticFeedback.medium()
+
+            // If TTS is speaking, stop it immediately (interrupt)
+            if self.ttsService.isSpeaking {
+                print("[VoiceAgentView] Stopping TTS due to wake word interrupt")
+                self.ttsService.stop()
+                self.audioPlayback.stop()
+                self.agentState = .listening
+            }
 
             // Auto-start session if not already active (use Task to avoid blocking)
             Task { @MainActor in
@@ -683,7 +711,8 @@ struct VoiceAgentView: View {
 
         do {
             try voiceCommandService.startListening()
-            print("[VoiceAgentView] Started wake word listening")
+            isVoiceReady = true
+            print("[VoiceAgentView] Started wake word listening - READY")
         } catch {
             print("[VoiceAgentView] Failed to start listening: \(error)")
             errorMessage = error.localizedDescription
@@ -693,6 +722,32 @@ struct VoiceAgentView: View {
     /// Send command to AI backend
     private func sendCommand(_ command: String) async {
         let lowerCommand = command.lowercased()
+
+        // Check for "stop" command - stops TTS and waits for next command
+        let stopKeywords = ["stop", "be quiet", "shut up", "silence", "quiet", "enough", "ok stop", "okay stop"]
+        let isStopCommand = stopKeywords.contains { lowerCommand.contains($0) } &&
+                           !lowerCommand.contains("video") && !lowerCommand.contains("stream")
+
+        if isStopCommand {
+            print("[VoiceAgentView] Stop command detected - stopping TTS")
+            // Stop TTS
+            ttsService.stop()
+            // Stop audio playback (for Gemini Live)
+            audioPlayback.stop()
+            // Interrupt AI if processing
+            Task {
+                switch settingsManager.settings.aiBackend {
+                case .openClaw:
+                    await OpenClawService.shared.interrupt()
+                case .geminiLive:
+                    await GeminiLiveService.shared.interrupt()
+                }
+            }
+            // Stay in listening mode
+            agentState = .listening
+            aiTranscript = ""
+            return
+        }
 
         // Check for live video mode commands
         let startLiveKeywords = ["start video stream", "start live video", "start video", "start streaming",

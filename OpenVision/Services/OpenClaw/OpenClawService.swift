@@ -461,14 +461,19 @@ final class OpenClawService: ObservableObject {
         let data = try encoder.encode(request)
 
         return try await withCheckedThrowingContinuation { continuation in
+            // Store continuation first
             pendingRequests[requestId] = continuation
 
             webSocket.send(.data(data)) { [weak self] error in
                 if let error = error {
+                    // Only resume if we can remove from pending (prevents double-resume)
                     Task { @MainActor in
-                        self?.pendingRequests.removeValue(forKey: requestId)
+                        if self?.pendingRequests.removeValue(forKey: requestId) != nil {
+                            continuation.resume(throwing: error)
+                        }
+                        // If removeValue returns nil, the continuation was already
+                        // resumed by handleResponse or failPendingRequests
                     }
-                    continuation.resume(throwing: error)
                 }
             }
         }

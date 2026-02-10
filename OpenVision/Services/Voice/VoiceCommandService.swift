@@ -8,7 +8,7 @@ import AVFoundation
 /// Voice command service with wake word detection
 ///
 /// Features:
-/// - Wake word detection ("Hey Vision")
+/// - Wake word detection ("Ok Vision")
 /// - Command capture after wake word
 /// - Silence detection to end command
 /// - Conversation mode (follow-ups without wake word)
@@ -74,6 +74,9 @@ final class VoiceCommandService: ObservableObject {
 
     /// When true, barge-in detection is paused (e.g., during TTS playback)
     var isBargeInPaused: Bool = false
+
+    /// Returns true if TTS is currently playing (allows wake word to interrupt)
+    var shouldAllowInterrupt: (() -> Bool)?
 
     // MARK: - Speech Recognition
 
@@ -155,20 +158,29 @@ final class VoiceCommandService: ObservableObject {
             recognitionRequest.append(buffer)
         }
 
-        // Start recognition task
+        // Start audio engine first (before recognition task)
+        audioEngine.prepare()
+        do {
+            try audioEngine.start()
+        } catch {
+            print("[VoiceCommand] Failed to start audio engine: \(error)")
+            // Clean up
+            audioEngine.inputNode.removeTap(onBus: 0)
+            self.recognitionRequest = nil
+            self.audioEngine = nil
+            throw VoiceCommandError.audioEngineUnavailable
+        }
+
+        // Start recognition task after audio engine is running
         recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             Task { @MainActor in
                 self?.handleRecognitionResult(result: result, error: error)
             }
         }
 
-        // Start audio engine
-        audioEngine.prepare()
-        try audioEngine.start()
-
         isListening = true
         state = isWakeWordEnabled ? .idle : .listening
-        print("[VoiceCommand] Started listening")
+        print("[VoiceCommand] Started listening - audio engine running")
     }
 
     /// Stop listening
@@ -291,26 +303,46 @@ final class VoiceCommandService: ObservableObject {
 
     /// Handle recognition result
     private func handleRecognitionResult(result: SFSpeechRecognitionResult?, error: Error?) {
+        // Guard: must be actively listening
+        guard isListening else {
+            print("[VoiceCommand] Ignoring result - not listening")
+            return
+        }
+
         guard let result = result else {
             if let error = error {
-                print("[VoiceCommand] Recognition error: \(error)")
+                let errorMsg = error.localizedDescription
+                // Ignore common non-critical errors
+                if !errorMsg.contains("No speech detected") && !errorMsg.contains("canceled") {
+                    print("[VoiceCommand] Recognition error: \(error)")
+                }
             }
             return
         }
 
         let transcription = result.bestTranscription.formattedString
-        currentTranscription = transcription
 
         switch state {
         case .idle:
+            currentTranscription = transcription
             // Check for wake word
             if detectWakeWord(in: transcription) {
                 handleWakeWordDetected()
             }
 
         case .listening, .conversationMode:
+            // Strip wake word from transcription (like xmeta does)
+            var command = transcription
+            for ww in [wakeWord.lowercased(), "ok vision", "okay vision", "hey vision", "hi vision"] {
+                if let range = command.lowercased().range(of: ww) {
+                    command = String(command[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+                    break
+                }
+            }
+            currentTranscription = command
+
             // Mark that user has started speaking
-            if transcription.count > 3 {
+            if command.count > 3 {
                 hasSpokenThisTurn = true
                 // Cancel conversation timeout since user is speaking
                 conversationTimeoutTimer?.invalidate()
@@ -320,11 +352,39 @@ final class VoiceCommandService: ObservableObject {
             resetSilenceTimer()
 
             // Check for command completion
-            if result.isFinal {
-                handleCommandComplete(transcription)
+            if result.isFinal && !command.isEmpty {
+                handleCommandComplete(command)
             }
 
         case .processing:
+            // Check for wake word to interrupt TTS (e.g., "ok vision stop")
+            let allowInterrupt = shouldAllowInterrupt?() ?? false
+            if allowInterrupt && detectWakeWord(in: transcription, bypassCooldown: true) {
+                print("[VoiceCommand] Wake word detected during TTS - interrupting")
+
+                // Notify to stop TTS immediately
+                onWakeWordDetected?()
+
+                // Extract command after wake word
+                let command = extractCommandAfterWakeWord(transcription)
+                print("[VoiceCommand] Extracted command: '\(command)'")
+
+                // Switch to listening mode - like xmeta's isCapturingCommand = true
+                state = .listening
+                currentTranscription = command
+                hasSpokenThisTurn = !command.isEmpty
+
+                // Start silence timer to wait for user to finish speaking
+                resetSilenceTimer()
+
+                // If result is already final and we have a command, process it
+                if result.isFinal && !command.isEmpty {
+                    print("[VoiceCommand] Result is final, processing command immediately")
+                    handleCommandComplete(command)
+                }
+                return
+            }
+
             // Check for barge-in (only if not paused - e.g., during TTS playback)
             if !isBargeInPaused && detectSpeechStart(in: transcription) {
                 handleBargeIn()
@@ -333,8 +393,8 @@ final class VoiceCommandService: ObservableObject {
     }
 
     /// Detect wake word in transcription
-    private func detectWakeWord(in text: String) -> Bool {
-        guard !wakeWordCooldownActive else { return false }
+    private func detectWakeWord(in text: String, bypassCooldown: Bool = false) -> Bool {
+        guard bypassCooldown || !wakeWordCooldownActive else { return false }
 
         let lowercased = text.lowercased()
         let wakeWordLower = wakeWord.lowercased()
@@ -347,7 +407,7 @@ final class VoiceCommandService: ObservableObject {
             "okay vision",
             "o.k. vision",
             "o k vision",
-            // Hey Vision variants
+            // Ok Vision variants
             "hey vision",
             "hi vision",
             // Common misrecognitions
@@ -363,6 +423,28 @@ final class VoiceCommandService: ObservableObject {
             print("[VoiceCommand] Detected wake word in: '\(text)'")
         }
         return detected
+    }
+
+    /// Extract command text after wake word
+    private func extractCommandAfterWakeWord(_ text: String) -> String {
+        let lowercased = text.lowercased()
+        let wakeWordLower = wakeWord.lowercased()
+
+        let variations = [
+            wakeWordLower,
+            "ok vision", "okay vision", "o.k. vision", "o k vision",
+            "hey vision", "hi vision",
+            "a vision", "heavy vision", "have vision", "obey vision", "oak vision"
+        ]
+
+        for variation in variations {
+            if let range = lowercased.range(of: variation) {
+                let afterWakeWord = String(text[range.upperBound...])
+                    .trimmingCharacters(in: .whitespaces)
+                return afterWakeWord
+            }
+        }
+        return ""
     }
 
     /// Handle wake word detection

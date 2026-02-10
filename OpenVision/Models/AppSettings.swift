@@ -54,8 +54,8 @@ struct AppSettings: Codable, Equatable {
 
     // MARK: - Voice Settings
 
-    /// Wake word phrase (default: "OK Vision")
-    var wakeWord: String = "OK Vision"
+    /// Wake word phrase (default: "Ok Vision")
+    var wakeWord: String = "Ok Vision"
 
     /// Whether wake word detection is enabled (OpenClaw mode only)
     var wakeWordEnabled: Bool = true

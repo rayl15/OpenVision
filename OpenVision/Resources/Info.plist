@@ -103,7 +103,7 @@
 
     <!-- Speech recognition for wake word detection -->
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>OpenVision uses speech recognition to detect your wake word ("Hey Vision") and transcribe your voice commands.</string>
+    <string>OpenVision uses speech recognition to detect your wake word ("Ok Vision") and transcribe your voice commands.</string>
 
     <!-- Bluetooth for glasses connection -->
     <key>NSBluetoothAlwaysUsageDescription</key>

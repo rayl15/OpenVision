@@ -180,7 +180,7 @@ private struct FeaturesPage: View {
                     icon: "mic.fill",
                     color: .blue,
                     title: "Voice Control",
-                    description: "Say \"Hey Vision\" to activate. Hands-free interaction."
+                    description: "Say \"Ok Vision\" to activate. Hands-free interaction."
                 )
 
                 FeatureRow(
@@ -291,7 +291,7 @@ private struct SetupPage: View {
                 SetupStep(
                     number: 4,
                     title: "Start Talking",
-                    description: "Say \"Hey Vision\" and ask anything"
+                    description: "Say \"Ok Vision\" and ask anything"
                 )
             }
             .padding(.horizontal, 24)

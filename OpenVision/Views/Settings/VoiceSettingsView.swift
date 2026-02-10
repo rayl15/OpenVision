@@ -28,7 +28,7 @@ struct VoiceSettingsView: View {
                         Text("Wake Phrase")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        TextField("Hey Vision", text: $settingsManager.settings.wakeWord)
+                        TextField("Ok Vision", text: $settingsManager.settings.wakeWord)
                             .autocorrectionDisabled()
                     }
                 }
