@@ -1,4 +1,4 @@
-# OpenVision 👓🦞
+# OpenVision 👓
 
 The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants.
 
@@ -10,136 +10,206 @@ The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants.
 
 ## Features
 
-### 🤖 Dual AI Backend Support
-- **OpenClaw Mode**: Wake word activation, 56+ tools, task execution
-- **Gemini Live Mode**: Real-time voice + vision, continuous conversation
+### Dual AI Backend Support
+- **OpenClaw Mode**: Wake word activation, 56+ tools, task execution via WebSocket
+- **Gemini Live Mode**: Real-time voice + vision with native audio streaming
 
-### 🎤 Smart Voice Control
-- Wake word activation ("Hey Vision") for privacy
-- Barge-in support (interrupt AI anytime)
-- Conversation mode (follow-ups without wake word)
+### Smart Voice Control
+- Wake word activation ("Ok Vision") for privacy
+- Barge-in support - interrupt AI anytime by saying "Ok Vision"
+- Conversation mode - follow-up questions without wake word
+- "Ok Vision stop" - stop AI mid-speech
 
-### 📷 Glasses Integration
-- Photo capture on voice command
-- Video streaming to AI (Gemini Live mode)
-- iPhone camera fallback for testing
+### Glasses Integration
+- Photo capture on voice command ("take a photo")
+- Live video streaming to Gemini (1fps)
+- Seamless glasses registration via Meta AI app
 
-### ⚙️ Zero Hardcoding
-- All configuration in-app (URLs, API keys, preferences)
-- No forking required to use
-- Secure storage of credentials
+### Production-Ready
+- Auto-reconnect with exponential backoff (12 attempts)
+- Network monitoring (auto-pause on WiFi drop)
+- App lifecycle handling (suspend/resume connections)
+- Secure credential storage
 
-### 🔄 Production-Ready
-- Auto-reconnect with exponential backoff
-- Network monitoring (pause on WiFi drop)
-- Conversation history persistence
+### Zero Hardcoding
+- All API keys configurable in-app
+- No code changes needed to use
+- Example config files included
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/voice-interface.png" width="200" alt="Voice Interface"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/images/settings.png" width="200" alt="Settings"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/images/ai-backend.png" width="200" alt="AI Backend Selection"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/images/glasses-settings.png" width="200" alt="Glasses Settings"/>
+</p>
+
+| Screen | Description |
+|--------|-------------|
+| **Voice Interface** | Main conversation screen with wake word prompt, waveform visualizer, and quick actions (camera, settings) |
+| **Settings** | Configure AI backend, glasses, voice control, and advanced options |
+| **AI Backend** | Choose between OpenClaw (tools & privacy) or Gemini Live (low latency) |
+| **Glasses** | Register glasses with Meta AI, view device status, control camera streaming |
+
+---
 
 ## Quick Start
 
 ### Prerequisites
 
 - macOS with Xcode 15+
-- iOS 16+ device (simulator doesn't support Bluetooth)
-- Meta Ray-Ban smart glasses (optional, iPhone camera fallback available)
+- Physical iOS 16+ device (simulator doesn't support Bluetooth)
+- Meta Ray-Ban smart glasses
+- Meta Developer account for glasses registration
 - One of:
-  - [OpenClaw](https://github.com/openclaw/openclaw) instance (local or cloud)
+  - [OpenClaw](https://github.com/openclaw/openclaw) instance
   - [Gemini API key](https://aistudio.google.com/app/apikey)
 
-### Installation
+### Step 1: Clone & Configure
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/user/OpenVision.git
-   cd OpenVision
-   ```
+```bash
+git clone https://github.com/anthropics/OpenVision.git
+cd OpenVision/meta-vision
 
-2. **Copy configuration files**
-   ```bash
-   cp Config.xcconfig.example Config.xcconfig
-   cp OpenVision/Config/Config.swift.example OpenVision/Config/Config.swift
-   ```
+# Copy config templates
+cp Config.xcconfig.example Config.xcconfig
+cp OpenVision/Config/Config.swift.example OpenVision/Config/Config.swift
+```
 
-3. **Configure Meta App ID**
+### Step 2: Get Meta Credentials
 
-   Edit `Config.xcconfig` and add your [Meta App ID](https://developer.meta.com):
-   ```
-   META_APP_ID = your_meta_app_id_here
-   DEVELOPMENT_TEAM = your_team_id_here
-   ```
+1. Go to [Meta Developer Console](https://developer.meta.com)
+2. Create an app or use existing one
+3. Enable "Wearables" capability
+4. Copy your **App ID** and **Client Token**
 
-4. **Open in Xcode**
-   ```bash
-   open OpenVision.xcodeproj
-   ```
+### Step 3: Edit Config.xcconfig
 
-5. **Build and run** on your iOS device
+```bash
+# Your Apple Team ID (from Xcode or Apple Developer Portal)
+DEVELOPMENT_TEAM = ABC123XYZ
 
-6. **Configure AI backend** in app: Settings → AI Backend
+# Your app's bundle identifier
+PRODUCT_BUNDLE_IDENTIFIER = com.yourname.openvision
+
+# Meta App ID from developer console
+META_APP_ID = 1234567890
+
+# Client Token - MUST be in this format: AR|APP_ID|TOKEN
+CLIENT_TOKEN = AR|1234567890|abcdef123456789
+
+# URL scheme for Meta AI callback
+APP_LINK_URL_SCHEME = openvision
+```
+
+### Step 4: Build & Run
+
+```bash
+open OpenVision.xcodeproj
+```
+
+1. Select your iOS device (not simulator)
+2. Build and run (⌘R)
+3. On first launch, go to **Settings → Glasses → Register**
+4. This opens Meta AI app to grant access
+5. Return to OpenVision
+
+### Step 5: Configure AI Backend
+
+**For Gemini Live:**
+1. Get API key from [AI Studio](https://aistudio.google.com/app/apikey)
+2. Settings → AI Backend → Gemini Settings
+3. Paste your API key
+
+**For OpenClaw:**
+1. Install [OpenClaw](https://github.com/openclaw/openclaw)
+2. Settings → AI Backend → OpenClaw Settings
+3. Enter gateway URL and auth token
+
+---
+
+## Usage
+
+### OpenClaw Mode (Default)
+
+```
+You: "Ok Vision"                    → Wake word activates listening
+You: "What's the weather today?"    → AI processes and responds via TTS
+You: "Take a photo"                 → Captures from glasses, analyzes
+You: "Ok Vision stop"               → Interrupts AI mid-speech
+[Silence for 30s]                   → Conversation ends
+```
+
+### Gemini Live Mode
+
+```
+You: "Ok Vision, start video streaming"  → Switches to Gemini Live
+[Camera streams at 1fps to Gemini]
+You: "What am I looking at?"             → Gemini sees and responds
+You: "Stop video"                        → Returns to OpenClaw mode
+```
+
+### Voice Commands
+
+| Command | Action |
+|---------|--------|
+| "Ok Vision" | Activate listening (wake word) |
+| "Ok Vision stop" | Stop AI while speaking |
+| "Take a photo" | Capture and analyze view |
+| "What do you see?" | Describe current view |
+| "Start video streaming" | Switch to Gemini Live mode |
+| "Stop video" | Exit Gemini Live mode |
+
+---
 
 ## AI Backend Comparison
 
 | Feature | OpenClaw | Gemini Live |
 |---------|----------|-------------|
-| **Voice Input** | Wake word + STT | Native (always on) |
-| **Response** | TTS playback | Native audio |
-| **Vision** | Photo on request | 1fps streaming |
+| **Voice Input** | Wake word + Apple STT | Native VAD (always on) |
+| **Voice Output** | Apple TTS | Native audio stream |
+| **Vision** | Photo on request | Continuous 1fps video |
 | **Tools** | 56+ skills | Limited |
 | **Privacy** | Better (wake word) | Always listening |
-| **Latency** | Higher | Lower |
-| **Best For** | Tasks & control | Conversation |
+| **Latency** | ~1-2s | ~300-500ms |
+| **Best For** | Tasks, tools, control | Natural conversation |
 
-## Usage
+---
 
-### OpenClaw Mode
+## Settings
 
-1. Say **"Hey Vision"** to activate
-2. Ask your question or give a command
-3. The AI responds via text-to-speech
-4. Say **"take a photo"** to capture and analyze what you see
-5. Continue the conversation naturally (no wake word needed)
-6. Silence ends the conversation after timeout
-
-### Gemini Live Mode
-
-1. Just start talking (always listening)
-2. AI responds with natural voice
-3. Video from glasses streams continuously at 1fps
-4. AI can see and respond to what you're looking at
-5. Interrupt anytime by speaking
-
-### Voice Commands
-
-- **"Take a photo"** - Capture and analyze current view
-- **"What do you see?"** - Analyze current view
-- **"Remember that..."** - Store a memory
-- **"Search for..."** - Web search (OpenClaw with Perplexity)
-- **"Stop"** - End the conversation
-
-## Configuration
-
-### Settings
-
+### AI Section
 | Setting | Description |
 |---------|-------------|
 | **AI Backend** | Choose OpenClaw or Gemini Live |
-| **Gateway URL** | OpenClaw WebSocket URL |
-| **Auth Token** | OpenClaw authentication token |
-| **Gemini API Key** | Google Gemini API key |
-| **Wake Word** | Custom wake phrase (default: "Hey Vision") |
-| **Custom Instructions** | Additional AI system prompt |
-| **Memories** | Key-value pairs the AI can access |
+| **OpenClaw Gateway** | WebSocket URL (e.g., `wss://localhost:18789`) |
+| **OpenClaw Token** | Authentication token |
+| **Gemini API Key** | Google API key |
+| **Custom Instructions** | Additional system prompt (Gemini only) |
+| **Memories** | Key-value context for AI (Gemini only) |
 
-### OpenClaw Setup
+### Voice Section
+| Setting | Description |
+|---------|-------------|
+| **Wake Word** | Activation phrase (default: "Ok Vision") |
+| **Wake Word Enabled** | Toggle wake word requirement |
+| **Activation Sound** | Play chime on wake word |
+| **Conversation Timeout** | Auto-end after silence (15s-2min) |
 
-1. [Install OpenClaw](https://github.com/openclaw/openclaw) on your Mac/server
-2. Get your gateway URL (e.g., `wss://localhost:18789`)
-3. Generate an auth token
-4. Enter both in Settings → AI Backend → OpenClaw Settings
+### Hardware Section
+| Setting | Description |
+|---------|-------------|
+| **Glasses Registration** | Register/unregister with Meta AI |
+| **Connection Status** | View connected devices |
+| **Camera Controls** | Manual stream start/stop |
 
-### Gemini Setup
-
-1. Get a [Gemini API key](https://aistudio.google.com/app/apikey)
-2. Enter it in Settings → AI Backend → Gemini Settings
+---
 
 ## Architecture
 
@@ -147,29 +217,110 @@ The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants.
 ┌─────────────────────────────────────────────────────────────────┐
 │                        OpenVision App                           │
 ├─────────────────────────────────────────────────────────────────┤
-│  UI Layer (SwiftUI)                                             │
-│  ├── MainTabView (Voice, History, Settings)                     │
-│  ├── VoiceAgentView (Live conversation UI)                      │
-│  └── SettingsView (Configuration panels)                        │
+│  Views (SwiftUI)                                                │
+│  ├── VoiceAgentView      Main conversation interface            │
+│  ├── SettingsView        Configuration panels                   │
+│  └── HistoryView         Past conversations                     │
 ├─────────────────────────────────────────────────────────────────┤
-│  Service Layer                                                  │
-│  ├── OpenClawService (WebSocket with auto-reconnect)            │
-│  ├── GeminiLiveService (Native audio WebSocket)                 │
-│  ├── VoiceCommandService (Wake word + STT)                      │
-│  └── GlassesCameraService (DAT SDK camera)                      │
+│  Services                                                       │
+│  ├── OpenClawService     WebSocket client, auto-reconnect       │
+│  ├── GeminiLiveService   Native audio/video WebSocket           │
+│  ├── VoiceCommandService Wake word detection, Apple STT         │
+│  ├── TTSService          Text-to-speech for OpenClaw            │
+│  ├── AudioCaptureService Microphone input for Gemini            │
+│  └── AudioPlaybackService Speaker output for Gemini             │
 ├─────────────────────────────────────────────────────────────────┤
-│  Manager Layer                                                  │
-│  ├── SettingsManager (JSON persistence)                         │
-│  ├── GlassesManager (DAT SDK wrapper)                           │
-│  └── ConversationManager (Chat history)                         │
+│  Managers                                                       │
+│  ├── GlassesManager      Meta DAT SDK wrapper                   │
+│  ├── SettingsManager     JSON persistence with debounce         │
+│  └── ConversationManager Chat history storage                   │
+├─────────────────────────────────────────────────────────────────┤
+│  External                                                       │
+│  ├── Meta DAT SDK        Glasses camera & registration          │
+│  ├── Apple Speech        Speech recognition                     │
+│  └── AVFoundation        Audio capture & playback               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## Troubleshooting
+
+### Glasses won't register
+- Ensure Meta AI app is installed and you're signed in
+- Enable Developer Mode in Meta AI app settings
+- Check that your Meta App ID matches the developer console
+
+### "Configuration Invalid" error
+- Verify `CLIENT_TOKEN` format: `AR|APP_ID|TOKEN`
+- Check all Config.xcconfig values are filled in
+- Ensure bundle ID matches what's in Meta Developer Console
+
+### No audio from glasses
+- Check Bluetooth connection in iOS Settings
+- Ensure glasses are set as audio output device
+- Try disconnecting and reconnecting glasses
+
+### Gemini Live fails to connect
+- Verify API key is correct
+- Check internet connection
+- Ensure you have Gemini API access (not all regions supported)
+
+### OpenClaw connection drops
+- App auto-reconnects up to 12 times with exponential backoff
+- Check if OpenClaw server is running
+- Verify gateway URL uses `wss://` (not `ws://`) for secure connection
+
+---
+
+## Development
+
+### Project Structure
+
+```
+OpenVision/
+├── App/                    App entry point, URL handling
+├── Config/                 Configuration files
+├── Models/                 Data models (Settings, Conversation)
+├── Services/
+│   ├── AIBackend/          Connection state, errors
+│   ├── OpenClaw/           WebSocket client
+│   ├── GeminiLive/         Native audio WebSocket
+│   ├── Voice/              Wake word, STT
+│   ├── Audio/              Capture & playback
+│   └── TTS/                Text-to-speech
+├── Managers/               Singletons (Settings, Glasses)
+├── Views/
+│   ├── VoiceAgent/         Main UI
+│   ├── Settings/           Config screens
+│   ├── History/            Chat history
+│   └── Components/         Reusable UI
+└── Utilities/              Extensions, helpers
+```
+
+### Key Patterns
+
+- **@MainActor** - All managers and services are main-actor isolated
+- **Callbacks** - Services use callbacks (not Combine) for events
+- **Singleton managers** - GlassesManager, SettingsManager, etc.
+- **Exponential backoff** - OpenClaw reconnects with jittered delay
+
+### Building
+
+```bash
+# Build for device
+xcodebuild -scheme OpenVision -destination 'platform=iOS,name=iPhone' build
+
+# Install on connected device
+xcrun devicectl device install app --device <DEVICE_ID> \
+  ~/Library/Developer/Xcode/DerivedData/.../OpenVision.app
+```
+
+---
+
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development
+Contributions are welcome!
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -180,25 +331,24 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 ### Code Style
 
 - Follow Swift API Design Guidelines
-- Use `@MainActor` for all UI-related code
-- Add documentation comments to public APIs
-- Write tests for new features
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [Meta Wearables DAT SDK](https://github.com/facebook/meta-wearables-dat-ios)
-- [OpenClaw](https://github.com/openclaw/openclaw)
-- [Google Gemini](https://ai.google.dev)
-
-## Support
-
-- [GitHub Issues](https://github.com/user/OpenVision/issues) - Bug reports and feature requests
-- [Discussions](https://github.com/user/OpenVision/discussions) - Questions and community
+- Use `@MainActor` for UI-related code
+- Add documentation comments for public APIs
+- Keep services focused and single-responsibility
 
 ---
 
-**Made with ❤️ by the open-source community**
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- [Meta Wearables DAT SDK](https://github.com/facebook/meta-wearables-dat-ios) - Glasses integration
+- [Google Gemini](https://ai.google.dev) - Live audio/video AI
+- [OpenClaw](https://github.com/openclaw/openclaw) - AI assistant framework
+
+---
+
+**Built with Swift and ❤️**

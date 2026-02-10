@@ -16,91 +16,127 @@ Open-source iOS app connecting Meta Ray-Ban glasses to AI assistants (OpenClaw +
    - `Config.xcconfig.example` → `Config.xcconfig`
    - `OpenVision/Config/Config.swift.example` → `OpenVision/Config/Config.swift`
 
-2. Fill in your Meta App ID in `Config.xcconfig`
+2. Fill in Config.xcconfig:
+   - `DEVELOPMENT_TEAM` - Your Apple Team ID
+   - `META_APP_ID` - From Meta Developer Console
+   - `CLIENT_TOKEN` - Format: `AR|APP_ID|TOKEN`
 
 3. Open `OpenVision.xcodeproj` in Xcode
 
 4. Build and run on physical iOS device
 
-5. Configure AI backend in app: Settings → AI Backend
+5. Register glasses: Settings → Glasses → Register
+
+6. Configure AI: Settings → AI Backend
 
 ## Architecture
 
 - MVVM + Services pattern
 - @MainActor for thread safety
-- Combine for reactive state
-- Pluggable AI backends via protocol
+- Callback-based events (not Combine publishers)
+- Singleton managers
 
 ## Key Files
 
 ### Services
-- `Services/OpenClaw/OpenClawService.swift` - WebSocket client with auto-reconnect (12 attempts, exponential backoff)
-- `Services/GeminiLive/GeminiLiveService.swift` - Native audio WebSocket for Gemini Live
-- `Services/Voice/VoiceCommandService.swift` - Wake word detection ("Hey Vision")
-- `Services/Audio/AudioCaptureService.swift` - Microphone input via AVAudioEngine
-- `Services/Camera/GlassesCameraService.swift` - DAT SDK camera streaming
+- `Services/OpenClaw/OpenClawService.swift` - WebSocket client with auto-reconnect
+- `Services/GeminiLive/GeminiLiveService.swift` - Native audio/video WebSocket
+- `Services/Voice/VoiceCommandService.swift` - Wake word detection ("Ok Vision")
+- `Services/Audio/AudioCaptureService.swift` - Microphone input for Gemini
+- `Services/Audio/AudioPlaybackService.swift` - Speaker output for Gemini
+- `Services/TTS/TTSService.swift` - Apple TTS for OpenClaw mode
 
 ### Managers
-- `Managers/SettingsManager.swift` - JSON persistence with 0.5s debounce
-- `Managers/GlassesManager.swift` - DAT SDK wrapper for glasses registration/connection
-- `Managers/ConversationManager.swift` - Chat history persistence
+- `Managers/GlassesManager.swift` - DAT SDK wrapper (registration, streaming, photos)
+- `Managers/SettingsManager.swift` - JSON persistence with debounce
+- `Managers/ConversationManager.swift` - Chat history (not yet wired up)
 
 ### Views
-- `Views/MainTabView.swift` - Tab navigation (Voice, History, Settings)
-- `Views/VoiceAgent/VoiceAgentView.swift` - Main conversation UI
-- `Views/Settings/SettingsView.swift` - Configuration panels
+- `Views/VoiceAgent/VoiceAgentView.swift` - Main conversation UI (~1100 lines)
+- `Views/Settings/SettingsView.swift` - Configuration navigation
+- `Views/MainTabView.swift` - Tab navigation
 
 ## AI Backends
 
-### OpenClaw Mode
-- Wake word activation ("Hey Vision")
-- Text-based: STT → OpenClaw → TTS
-- 56+ tools via WebSocket
+### OpenClaw Mode (Default)
+- Wake word: "Ok Vision"
+- Text-based: Apple STT → OpenClaw WebSocket → Apple TTS
+- 56+ tools available
 - Better privacy (only listens after wake word)
-- Best for: Tasks, tools, control
+- Photo capture on request
 
 ### Gemini Live Mode
-- Always listening (native VAD)
-- Native audio: speech-to-speech
-- Continuous 1fps video streaming
-- Lower latency
-- Best for: Continuous conversation
+- Activated by: "start video streaming"
+- Native audio (no STT/TTS needed)
+- Continuous 1fps video streaming from glasses
+- Lower latency (~300ms vs ~1-2s)
+- Exit with: "stop video"
 
-## Patterns
+## Important Patterns
 
-- **Listener tokens**: Retained for DAT SDK subscriptions
-- **Debounced saves**: 0.5s debounce for settings changes
-- **Exponential backoff**: 1s → 30s over 12 reconnection attempts
-- **Network monitoring**: NWPathMonitor pauses connection on WiFi drop
-- **@MainActor isolation**: All managers and services are MainActor-isolated
+### Connection Management
+- OpenClaw: 12 reconnection attempts with exponential backoff (1s → 30s)
+- Network monitoring via NWPathMonitor (auto-suspend on WiFi drop)
+- App lifecycle handling (suspend on background, resume on foreground)
 
-## Configuration
+### Voice Flow
+1. Wake word detection in `.idle` state
+2. Transition to `.listening` → capture command
+3. Silence detection (1.5s) ends capture
+4. Transition to `.processing` → send to AI
+5. AI response → TTS playback
+6. Enter conversation mode (follow-ups without wake word)
 
-### Settings Storage
-- File: `Documents/settings.json`
-- Model: `AppSettings` struct (Codable)
-- Debounced auto-save on property changes
+### Glasses Integration
+- Registration opens Meta AI app for OAuth
+- URL callback handled in `OpenVisionApp.handleUrl()`
+- StreamSession for camera: video frames + photo capture
+- Use `SpecificDeviceSelector` for reliable streaming
 
-### Build Configuration
-- `Config.xcconfig`: Bundle ID, Team ID, Meta App ID
-- `Config.swift`: Optional default API keys (can be empty)
+## Configuration Files
 
-## Testing
+### Config.xcconfig (Build-time, gitignored)
+```
+DEVELOPMENT_TEAM = ABC123XYZ
+PRODUCT_BUNDLE_IDENTIFIER = com.yourname.openvision
+META_APP_ID = 1234567890
+CLIENT_TOKEN = AR|1234567890|abcdef123456
+APP_LINK_URL_SCHEME = openvision
+```
 
-- Run tests: Cmd+U in Xcode
-- Mock services in `Tests/Mocks/`
-- iPhone camera mode for testing without glasses
-- Mock device support via MWDATMockDevice
+### Config.swift (Runtime, gitignored)
+- Optional default API keys
+- Leave empty to require in-app configuration
 
-## SDK Documentation
+### settings.json (Documents/, runtime)
+- User preferences and API keys
+- Auto-saved with 0.5s debounce
 
-### Meta Wearables DAT
-- GitHub: https://github.com/facebook/meta-wearables-dat-ios
-- Developer Center: https://developer.meta.com/docs/wearables
+## Voice Commands
 
-### OpenClaw
-- GitHub: https://github.com/openclaw/openclaw
-- Docs: https://openclaw.ai/docs
+| Command | Action |
+|---------|--------|
+| "Ok Vision" | Wake word - activates listening |
+| "Ok Vision stop" | Interrupt AI while speaking |
+| "Take a photo" | Capture from glasses camera |
+| "Start video streaming" | Switch to Gemini Live mode |
+| "Stop video" | Exit Gemini Live mode |
 
-### Gemini Live
-- Docs: https://ai.google.dev/gemini-api/docs/live-api
+## Common Issues
+
+### Glasses Registration Fails
+- Check `CLIENT_TOKEN` format: must be `AR|APP_ID|TOKEN`
+- Ensure Meta AI app is installed with Developer Mode enabled
+
+### CheckedContinuation Crash
+- Ensure continuations are only resumed once
+- Use `removeValue(forKey:)` pattern to prevent double-resume
+
+### Gemini Transcribes Wrong Language
+- Added Hindi fallback keywords for stop commands
+- Gemini sometimes transcribes English as Hindi
+
+## SDK References
+
+- Meta DAT: https://github.com/facebook/meta-wearables-dat-ios
+- Gemini Live: https://ai.google.dev/gemini-api/docs/live-api
