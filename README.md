@@ -41,13 +41,13 @@ The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants.
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/voice-interface.png" width="200" alt="Voice Interface"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/images/settings.png" width="200" alt="Settings"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/images/ai-backend.png" width="200" alt="AI Backend Selection"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/images/glasses-settings.png" width="200" alt="Glasses Settings"/>
+  <img src="docs/images/voice-interface.png" width="180" alt="Voice Interface"/>
+  &nbsp;&nbsp;
+  <img src="docs/images/settings.png" width="180" alt="Settings"/>
+  &nbsp;&nbsp;
+  <img src="docs/images/ai-backend.png" width="180" alt="AI Backend Selection"/>
+  &nbsp;&nbsp;
+  <img src="docs/images/glasses-settings.png" width="180" alt="Glasses Settings"/>
 </p>
 
 | Screen | Description |
