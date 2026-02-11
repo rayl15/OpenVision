@@ -169,7 +169,7 @@ final class OpenClawService: ObservableObject {
 
     // MARK: - Connection
 
-    /// Connect to OpenClaw gateway
+    /// Connect to OpenClaw gateway with auto-retry
     func connect() async throws {
         // Check configuration
         guard gatewayURL != nil, !authToken.isEmpty else {
@@ -192,7 +192,27 @@ final class OpenClawService: ObservableObject {
         lastError = nil
         transition(to: .connecting)
 
-        try await performConnect()
+        // Auto-retry up to 3 times
+        var lastErr: Error?
+        for attempt in 1...3 {
+            do {
+                debugInfo = attempt > 1 ? "Retrying... (\(attempt)/3)" : "Connecting..."
+                try await performConnect()
+                return // Success!
+            } catch {
+                lastErr = error
+                print("[OpenClaw] Connection attempt \(attempt) failed: \(error)")
+                if attempt < 3 {
+                    // Wait before retry
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                }
+            }
+        }
+
+        // All retries failed
+        if let err = lastErr {
+            throw err
+        }
     }
 
     /// Internal connect implementation
@@ -221,10 +241,10 @@ final class OpenClawService: ObservableObject {
             // Start receive loop
             startReceiving()
 
-            // Wait for connection (up to 5 seconds)
+            // Wait for connection (up to 10 seconds)
             debugInfo = "Waiting for connection..."
             var connected = false
-            for _ in 0..<25 {
+            for _ in 0..<50 {
                 guard !Task.isCancelled else {
                     closeWebSocket()
                     return
