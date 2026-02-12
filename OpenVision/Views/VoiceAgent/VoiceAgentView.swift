@@ -534,11 +534,19 @@ struct VoiceAgentView: View {
         // Stop any ongoing TTS
         ttsService.stop()
 
-        // Exit conversation mode but keep listening for wake word
-        voiceCommandService.exitConversationMode()
-
+        // Set session inactive FIRST to prevent callbacks from processing
         isSessionActive = false
         agentState = .idle
+
+        // Handle voice command service based on wake word setting
+        if settingsManager.settings.wakeWordEnabled {
+            // Exit conversation mode but keep listening for wake word
+            voiceCommandService.exitConversationMode()
+        } else {
+            // Wake word disabled - stop listening entirely to prevent
+            // processing speech after session ends
+            voiceCommandService.stopListening()
+        }
         userTranscript = ""
         aiTranscript = ""
         currentToolName = nil
@@ -608,6 +616,14 @@ struct VoiceAgentView: View {
         // Command captured
         voiceCommandService.onCommandCaptured = { (command: String) in
             print("[VoiceAgentView] Command captured: \(command)")
+
+            // IMPORTANT: Only process commands when session is active
+            // This prevents processing stale commands after session ends
+            guard self.isSessionActive else {
+                print("[VoiceAgentView] Ignoring command - session not active")
+                return
+            }
+
             self.userTranscript = command
 
             // Send command to AI backend
@@ -651,6 +667,14 @@ struct VoiceAgentView: View {
         // OpenClaw callbacks
         OpenClawService.shared.onAgentMessage = { (message: String) in
             print("[VoiceAgentView] Received AI message: \(message.prefix(50))...")
+
+            // IMPORTANT: Only speak responses when session is active
+            // This prevents speaking stale responses after session ends
+            guard self.isSessionActive else {
+                print("[VoiceAgentView] Ignoring AI message - session not active")
+                return
+            }
+
             self.aiTranscript = message
 
             // Speak the response via TTS
