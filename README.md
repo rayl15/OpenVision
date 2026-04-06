@@ -18,7 +18,7 @@
 
 ## Demo
 
-https://github.com/rayl15/OpenVision/raw/main/vision-coca-cola.mp4
+![Demo](vision-coca-cola.gif)
 
 ---
 
