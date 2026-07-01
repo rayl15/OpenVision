@@ -1002,6 +1002,12 @@ struct VoiceAgentView: View {
                     case .face(let intent):
                         await handleFaceIntent(intent)
                         agentState = isSessionActive ? .listening : .idle
+                    case .webSearch(let query):
+                        NSLog("[OV] web search: \"%@\"", query)
+                        let result = await WebSearchService.search(query)
+                        let answer = await GemmaLocalService.shared.answerWithSearchResult(question: command, result: result)
+                        speakResponse(answer)
+                        agentState = isSessionActive ? .listening : .idle
                     case .answer(let text):
                         speakResponse(text)
                         agentState = isSessionActive ? .listening : .idle

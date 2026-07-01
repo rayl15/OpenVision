@@ -310,6 +310,7 @@ final class GemmaLocalService: ObservableObject {
 
     enum RouteResult {
         case face(FaceIntent)
+        case webSearch(String)   // search query
         case answer(String)
     }
 
@@ -338,7 +339,12 @@ final class GemmaLocalService: ObservableObject {
         User: forget Sara → {"face":"forget","name":"Sara"}
         User: who do you know → {"face":"list","name":""}
 
-        For anything NOT about recognizing people (questions, chat, facts), just answer helpfully in 1-3 short sentences. Do NOT mention faces or JSON.
+        If the user asks about current or real-time information you can't be sure of — news, weather, sports scores, prices, who currently holds a role, recent events, or anything after your training — reply with ONLY: {"tool":"web_search","query":"A_CONCISE_SEARCH_QUERY"}
+        User: what's the weather in Tokyo → {"tool":"web_search","query":"weather in Tokyo"}
+        User: who won the game last night → {"tool":"web_search","query":"latest game result"}
+        User: what's the price of bitcoin → {"tool":"web_search","query":"bitcoin price"}
+
+        For anything else you already know (general questions, chat, facts, math), just answer helpfully in 1-3 short sentences. Do NOT mention faces, tools, or JSON.
         """
         let messages: [Chat.Message] = [
             .init(role: .system, content: system),
@@ -351,13 +357,39 @@ final class GemmaLocalService: ObservableObject {
         NSLog("[OV] routeCommand(\"%@\") -> %@", command, String(trimmed.prefix(120)))
         if let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end,
            let data = String(trimmed[start...end]).data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let action = (obj["face"] as? String)?.lowercased(),
-           ["remember", "identify", "forget", "list"].contains(action) {
-            let name = (obj["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return .face(FaceIntent(action: action, name: name))
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let action = (obj["face"] as? String)?.lowercased(),
+               ["remember", "identify", "forget", "list"].contains(action) {
+                let name = (obj["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return .face(FaceIntent(action: action, name: name))
+            }
+            if (obj["tool"] as? String)?.lowercased() == "web_search",
+               let query = (obj["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !query.isEmpty {
+                return .webSearch(query)
+            }
         }
         return .answer(trimmed)
+    }
+
+    /// Phrase a concise spoken answer to `question` using a web-search `result`. Falls back to the
+    /// model's own knowledge (flagged as uncertain) when the result is empty.
+    func answerWithSearchResult(question: String, result: String) async -> String {
+        let system = """
+        You are a voice assistant for smart glasses. Use the web search result to answer the user's question in 1-3 short spoken sentences. If the result is empty or unrelated, answer from your own knowledge and briefly say you're not certain of the very latest details. Do not mention "search result" or JSON.
+        """
+        let context = result.isEmpty ? "(no web result found)" : result
+        let user = "Question: \(question)\n\nWeb search result: \(context)"
+        let messages: [Chat.Message] = [
+            .init(role: .system, content: system),
+            .init(role: .user, content: user)
+        ]
+        if let out = try? await rawGenerate(messages: messages, maxTokens: 200, temperature: 0.4),
+           !out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return out.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // Generation failed — speak the raw result if we have one.
+        return result.isEmpty ? "I couldn't find that right now." : result
     }
 
     /// One-shot text generation (no streaming/callbacks) — used by the intent router.
