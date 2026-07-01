@@ -5,14 +5,14 @@
 <h1 align="center">OpenVision</h1>
 
 <p align="center">
-  The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants.
+  The open-source iOS app connecting Meta Ray-Ban smart glasses to AI assistants — cloud or fully on-device.
   <br/>
   <strong>Your glasses. Your AI. Your rules.</strong>
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Swift 5](https://img.shields.io/badge/Swift-5-orange.svg)](https://swift.org)
-[![iOS 16+](https://img.shields.io/badge/iOS-16+-blue.svg)](https://developer.apple.com/ios/)
+[![iOS 18+](https://img.shields.io/badge/iOS-18+-blue.svg)](https://developer.apple.com/ios/)
 
 ---
 
@@ -44,12 +44,20 @@
 
 ## Features
 
-### Dual AI Backend Support
-- **OpenClaw Mode**: Wake word activation, 56+ tools, task execution via WebSocket
-- **Gemini Live Mode**: Real-time voice + vision with native audio streaming
+### Four AI Backends — Cloud or Fully On-Device
+- **Local (Gemma 4)**: On-device Gemma 4 via Apple MLX — private, offline, **zero API cost**. Text tier for chat + agentic commands (vision handled by a cloud backend).
+- **OpenClaw**: Wake word activation, 56+ tools, task execution via WebSocket
+- **Gemini Live**: Real-time voice + vision with native audio streaming
+- **OpenAI**: GPT-4o text + vision over the Chat Completions API — works with any **OpenAI-compatible** endpoint (OpenRouter, local servers, etc.)
+
+### On-Device Face Recognition (Apple Vision)
+- Teach it faces hands-free: *"Ok Vision, remember this person as Sara"*
+- Recognize them later: *"Ok Vision, who is this?"*
+- Runs **entirely on-device** (Apple Vision `computeDistance`) — no cloud, no photos leave your phone
+- Intent is parsed by the on-device model (agentic) — **any phrasing works**, no rigid command syntax
 
 ### Smart Voice Control
-- Wake word activation ("Ok Vision") for privacy
+- Reliable wake word activation ("Ok Vision") for privacy — primed recognition + self-restart so it keeps listening (survives idle, replies, and glasses off/on)
 - Barge-in support - interrupt AI anytime by saying "Ok Vision"
 - Conversation mode - follow-up questions without wake word
 - "Ok Vision stop" - stop AI mid-speech
@@ -88,7 +96,7 @@
 |--------|-------------|
 | **Voice Interface** | Main conversation screen with wake word prompt, waveform visualizer, and quick actions (camera, settings) |
 | **Settings** | Configure AI backend, glasses, voice control, and advanced options |
-| **AI Backend** | Choose between OpenClaw (tools & privacy) or Gemini Live (low latency) |
+| **AI Backend** | Choose Local Gemma (on-device), OpenClaw (tools), Gemini Live (low latency), or OpenAI |
 | **Glasses** | Register glasses with Meta AI, view device status, control camera streaming |
 
 ---
@@ -98,12 +106,14 @@
 ### Prerequisites
 
 - macOS with Xcode 15+
-- Physical iOS 16+ device (simulator doesn't support Bluetooth)
+- Physical iOS 18+ device (simulator doesn't support Bluetooth; on-device Gemma needs iOS 18)
 - Meta Ray-Ban smart glasses
 - Meta Developer account for glasses registration
-- One of:
+- An AI backend — one of:
+  - **Local (Gemma 4)** — no account/key needed; runs on-device (needs a recent iPhone, e.g. 15 Pro/16/17)
   - [OpenClaw](https://github.com/openclaw/openclaw) instance
   - [Gemini API key](https://aistudio.google.com/app/apikey)
+  - [OpenAI API key](https://platform.openai.com/api-keys) (or any OpenAI-compatible endpoint)
 
 ### Step 1: Clone & Configure
 
@@ -197,22 +207,26 @@ You: "Stop video"                        → Returns to OpenClaw mode
 | "Ok Vision stop" | Stop AI while speaking |
 | "Take a photo" | Capture and analyze view |
 | "What do you see?" | Describe current view |
+| "Remember this person as Sara" | Enroll a face (on-device) |
+| "Who is this?" | Identify the person in view (on-device) |
+| "Forget Sara" / "Who do you know?" | Remove / list known faces |
 | "Start video streaming" | Switch to Gemini Live mode |
 | "Stop video" | Exit Gemini Live mode |
+
+> Face and local-mode commands are routed by the on-device model, so you don't need exact wording — natural phrasing works.
 
 ---
 
 ## AI Backend Comparison
 
-| Feature | OpenClaw | Gemini Live |
-|---------|----------|-------------|
-| **Voice Input** | Wake word + Apple STT | Native VAD (always on) |
-| **Voice Output** | Apple TTS | Native audio stream |
-| **Vision** | Photo on request | Continuous 1fps video |
-| **Tools** | 56+ skills | Limited |
-| **Privacy** | Better (wake word) | Always listening |
-| **Latency** | ~1-2s | ~300-500ms |
-| **Best For** | Tasks, tools, control | Natural conversation |
+| Backend | Voice | Vision | Cost / Privacy | Best For |
+|---------|-------|--------|----------------|----------|
+| **Local (Gemma 4)** | Wake word + Apple STT | via a cloud backend | Free · **fully on-device** | Private chat, face commands, offline |
+| **OpenClaw** | Wake word + Apple STT | Photo on request | Self-hosted | Tasks, 56+ tools, control |
+| **Gemini Live** | Native VAD (always on) | Continuous 1fps video | Cloud API | Natural, low-latency conversation |
+| **OpenAI** | Wake word + Apple STT | Photo on request (GPT-4o) | Cloud API · OpenAI-compatible | Cloud text + vision, cross-checking |
+
+Face recognition ("remember this person as …" / "who is this?") runs **on-device** and works with **any** backend.
 
 ---
 
@@ -221,12 +235,14 @@ You: "Stop video"                        → Returns to OpenClaw mode
 ### AI Section
 | Setting | Description |
 |---------|-------------|
-| **AI Backend** | Choose OpenClaw or Gemini Live |
+| **AI Backend** | Choose Local (Gemma 4), OpenClaw, Gemini Live, or OpenAI |
+| **Local (Gemma 4)** | Download / select the on-device model |
 | **OpenClaw Gateway** | WebSocket URL (e.g., `wss://localhost:18789`) |
 | **OpenClaw Token** | Authentication token |
 | **Gemini API Key** | Google API key |
-| **Custom Instructions** | Additional system prompt (Gemini only) |
-| **Memories** | Key-value context for AI (Gemini only) |
+| **OpenAI** | API key, model (default `gpt-4o-mini`), and base URL (OpenAI-compatible) |
+| **Custom Instructions** | Additional system prompt |
+| **Memories** | Key-value context for AI |
 
 ### Voice Section
 | Setting | Description |
@@ -259,8 +275,11 @@ You: "Stop video"                        → Returns to OpenClaw mode
 │  Services                                                       │
 │  ├── OpenClawService     WebSocket client, auto-reconnect       │
 │  ├── GeminiLiveService   Native audio/video WebSocket           │
+│  ├── OpenAIService       Chat Completions (text + vision)       │
+│  ├── GemmaLocalService   On-device Gemma 4 via MLX + routing    │
+│  ├── FaceRecognitionService  On-device faces (Apple Vision)     │
 │  ├── VoiceCommandService Wake word detection, Apple STT         │
-│  ├── TTSService          Text-to-speech for OpenClaw            │
+│  ├── TTSService          Text-to-speech                         │
 │  ├── AudioCaptureService Microphone input for Gemini            │
 │  └── AudioPlaybackService Speaker output for Gemini             │
 ├─────────────────────────────────────────────────────────────────┤
@@ -271,6 +290,8 @@ You: "Stop video"                        → Returns to OpenClaw mode
 ├─────────────────────────────────────────────────────────────────┤
 │  External                                                       │
 │  ├── Meta DAT SDK        Glasses camera & registration          │
+│  ├── Apple MLX           On-device Gemma 4 inference             │
+│  ├── Apple Vision        On-device face recognition             │
 │  ├── Apple Speech        Speech recognition                     │
 │  └── AVFoundation        Audio capture & playback               │
 └─────────────────────────────────────────────────────────────────┘
@@ -380,8 +401,10 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 - [Meta Wearables DAT SDK](https://github.com/facebook/meta-wearables-dat-ios) - Glasses integration
+- [Apple MLX](https://github.com/ml-explore/mlx-swift-lm) - On-device Gemma 4 inference
 - [Google Gemini](https://ai.google.dev) - Live audio/video AI
 - [OpenClaw](https://github.com/openclaw/openclaw) - AI assistant framework
+- [OpenAI](https://platform.openai.com) - GPT-4o text + vision
 
 ---
 
