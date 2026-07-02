@@ -75,6 +75,9 @@ targets:
       - package: swift-transformers
         products:
           - Tokenizers
+      # On-device neural TTS (Kokoro).
+      - package: KokoroSwift
+        product: KokoroSwift
     preBuildScripts:
       - name: "Check Config Files"
         script: |
@@ -100,6 +103,10 @@ packages:
   swift-transformers:
     url: https://github.com/huggingface/swift-transformers.git
     from: "1.0.0"
+  # On-device neural TTS (Kokoro-82M) via MLX Swift — VENDORED under Vendor/ for full visibility
+  # and reproducibility (source frozen in-repo, not pulled live). Shares mlx-swift with mlx-swift-lm.
+  KokoroSwift:
+    path: Vendor/kokoro-ios
 
 schemes:
   OpenVision:

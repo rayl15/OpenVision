@@ -31,6 +31,7 @@
 		587295A93FA82DEBB18139BB /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CC70E5327BD07B920833FC /* GlassCard.swift */; };
 		5C474A09B3067A8ACD7546C1 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B78D6C28BEFF1F8426997C /* AudioCaptureService.swift */; };
 		62B472287A9628E0E6FB377D /* GemmaLocalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBB8B07B4970CA5F63B3B2A /* GemmaLocalService.swift */; };
+		67FDB8417ED64F0FF8B576F5 /* KokoroSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 1DCD8AD4861E50005E48943D /* KokoroSwift */; };
 		6878487E101CAC3A8BF651E9 /* AnimatedBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F6DCD4CB868C1A5711F96D /* AnimatedBackground.swift */; };
 		6C065C29CC13488E67A70363 /* SoundService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2B8AE1E195B62D980BEA66 /* SoundService.swift */; };
 		6E678BA570E5148EE9D9B4FE /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = CCBF8A11015C4FD6F78FF103 /* HuggingFace */; };
@@ -115,6 +116,7 @@
 		CE2B8AE1E195B62D980BEA66 /* SoundService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundService.swift; sourceTree = "<group>"; };
 		CEE6F61B22736F87248FD0F5 /* LocalAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAgent.swift; sourceTree = "<group>"; };
 		D1428DBC281E476E9331F9B4 /* OpenVision-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "OpenVision-Bridging-Header.h"; sourceTree = "<group>"; };
+		D2563E08B4723C4A8848A8A6 /* kokoro-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "kokoro-ios"; path = "Vendor/kokoro-ios"; sourceTree = SOURCE_ROOT; };
 		D416290774C17FDC0DDFBC68 /* TTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSService.swift; sourceTree = "<group>"; };
 		DFBB8B07B4970CA5F63B3B2A /* GemmaLocalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaLocalService.swift; sourceTree = "<group>"; };
 		E553EFA930E3B93EEA8F0AB6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 				B82C3BB7AED7C2367F729678 /* MLXHuggingFace in Frameworks */,
 				6E678BA570E5148EE9D9B4FE /* HuggingFace in Frameworks */,
 				FFFDF7E8B3F8E6A194E1571E /* Tokenizers in Frameworks */,
+				67FDB8417ED64F0FF8B576F5 /* KokoroSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -320,6 +323,14 @@
 			path = OpenClaw;
 			sourceTree = "<group>";
 		};
+		8F12C1169529CE44B11137F4 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				D2563E08B4723C4A8848A8A6 /* kokoro-ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
 		95CA46C43A53365AD4139930 /* AppleFoundation */ = {
 			isa = PBXGroup;
 			children = (
@@ -398,6 +409,7 @@
 			children = (
 				09EB633ED6C10098514FA100 /* OpenVision */,
 				792E8D9249D5790897D4615F /* OpenVision */,
+				8F12C1169529CE44B11137F4 /* Packages */,
 				36F672D5AB5BCE7D4C73AA30 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -455,6 +467,7 @@
 				4169E6A87853A9ECECC3C6E4 /* MLXHuggingFace */,
 				CCBF8A11015C4FD6F78FF103 /* HuggingFace */,
 				8F8A2A9D74F79603F186C7B4 /* Tokenizers */,
+				1DCD8AD4861E50005E48943D /* KokoroSwift */,
 			);
 			productName = OpenVision;
 			productReference = 8601201988376029090B1EAA /* OpenVision.app */;
@@ -490,6 +503,7 @@
 				ECA8A07B405261A27FD7625B /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
 				15C5A08D3F97FF9BA942B321 /* XCRemoteSwiftPackageReference "swift-huggingface" */,
 				922ADEF49EB5DA6AD8635D76 /* XCRemoteSwiftPackageReference "swift-transformers" */,
+				A8456994C4E280FE9D1FCB59 /* XCLocalSwiftPackageReference "Vendor/kokoro-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -795,6 +809,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		A8456994C4E280FE9D1FCB59 /* XCLocalSwiftPackageReference "Vendor/kokoro-ios" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "Vendor/kokoro-ios";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		15C5A08D3F97FF9BA942B321 /* XCRemoteSwiftPackageReference "swift-huggingface" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -835,6 +856,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F7EEA1ED9999A23C56A77DE0 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
 			productName = MWDATCamera;
+		};
+		1DCD8AD4861E50005E48943D /* KokoroSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KokoroSwift;
 		};
 		4169E6A87853A9ECECC3C6E4 /* MLXHuggingFace */ = {
 			isa = XCSwiftPackageProductDependency;
