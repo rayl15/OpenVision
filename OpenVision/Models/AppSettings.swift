@@ -8,6 +8,7 @@ enum AIBackendType: String, Codable, CaseIterable {
     case openClaw = "openclaw"
     case geminiLive = "gemini_live"
     case openAI = "openai"
+    case appleFoundation = "apple_foundation"
     case localGemma = "local_gemma"
 
     var displayName: String {
@@ -15,6 +16,7 @@ enum AIBackendType: String, Codable, CaseIterable {
         case .openClaw: return "OpenClaw"
         case .geminiLive: return "Gemini Live"
         case .openAI: return "OpenAI"
+        case .appleFoundation: return "Apple Intelligence"
         case .localGemma: return "Local (Gemma 4)"
         }
     }
@@ -27,6 +29,8 @@ enum AIBackendType: String, Codable, CaseIterable {
             return "Real-time voice + vision, continuous conversation"
         case .openAI:
             return "GPT-4o — cloud text + vision (OpenAI-compatible)"
+        case .appleFoundation:
+            return "On-device Apple model — private, no download (iOS 26+)"
         case .localGemma:
             return "On-device Gemma 4 — private, offline, no API cost"
         }
@@ -37,6 +41,7 @@ enum AIBackendType: String, Codable, CaseIterable {
         case .openClaw: return "terminal"
         case .geminiLive: return "waveform"
         case .openAI: return "sparkles"
+        case .appleFoundation: return "apple.logo"
         case .localGemma: return "cpu"
         }
     }
@@ -148,6 +153,7 @@ struct AppSettings: Codable, Equatable {
         case .openClaw: return isOpenClawConfigured
         case .geminiLive: return isGeminiConfigured
         case .openAI: return isOpenAIConfigured
+        case .appleFoundation: return true   // OS-managed; availability checked at connect
         case .localGemma: return isLocalGemmaConfigured
         }
     }

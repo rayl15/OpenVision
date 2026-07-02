@@ -1,0 +1,100 @@
+// OpenVision - LocalAgent.swift
+// Shared agentic routing for the on-device text backends (Gemma via MLX, Apple Foundation Models).
+//
+// The prompts + parsing live here ONCE; each backend supplies a `generate(system, user)` closure.
+// This keeps face-recognition + web-search routing identical across local models — no prompt drift.
+
+import Foundation
+
+@MainActor
+enum LocalAgent {
+
+    struct FaceIntent {
+        let action: String   // "remember" | "identify" | "forget" | "list"
+        let name: String     // person's name (may be empty for identify/list)
+    }
+
+    enum RouteResult {
+        case face(FaceIntent)
+        case webSearch(String)   // search query
+        case answer(String)
+    }
+
+    /// A backend's one-shot generation primitive: (systemPrompt, userText) -> text (nil on failure).
+    typealias Generate = (_ system: String, _ user: String) async -> String?
+
+    /// ONE generation that either routes a face command, requests a web search, or answers directly.
+    static func route(_ command: String, generate: Generate) async -> RouteResult {
+        let system = """
+        You are a voice assistant for smart glasses that can recognize faces the user has taught you. The glasses camera can see whoever is in front of the user — you do NOT need them to show you anyone.
+
+        If the user wants a face action, reply with ONLY one JSON object and nothing else (the app will take the photo):
+        - Identify / name the person in view: {"face":"identify","name":""}
+        - Save/remember the person under a name: {"face":"remember","name":"THE_NAME"}
+        - Forget a saved person: {"face":"forget","name":"THE_NAME"}
+        - List the people you know: {"face":"list","name":""}
+
+        Examples:
+        User: who is this → {"face":"identify","name":""}
+        User: who is he → {"face":"identify","name":""}
+        User: who is she → {"face":"identify","name":""}
+        User: who am I looking at → {"face":"identify","name":""}
+        User: do you know this person → {"face":"identify","name":""}
+        User: remember this is Sara → {"face":"remember","name":"Sara"}
+        User: her name is Priya → {"face":"remember","name":"Priya"}
+        User: save his face as Alex → {"face":"remember","name":"Alex"}
+        User: forget Sara → {"face":"forget","name":"Sara"}
+        User: who do you know → {"face":"list","name":""}
+
+        Use a web search if EITHER is true: the user asks about current/real-time information (news, weather, sports scores, prices, recent events), OR you don't know the answer, aren't fully confident, or your knowledge may be outdated. In that case reply with ONLY: {"tool":"web_search","query":"A_CONCISE_SEARCH_QUERY"}. Never tell the user you don't know without searching first.
+        User: what's the weather in Tokyo → {"tool":"web_search","query":"weather in Tokyo"}
+        User: who won the game last night → {"tool":"web_search","query":"latest game result"}
+        User: what's the price of bitcoin → {"tool":"web_search","query":"bitcoin price"}
+        User: who is the CEO of a small startup you don't know → {"tool":"web_search","query":"CEO of that startup"}
+
+        Only answer directly (no search) when you are genuinely confident it's stable, well-known info — math, definitions, general facts. Then answer in 1-3 short sentences. Do NOT mention faces, tools, or JSON.
+        """
+        guard let output = await generate(system, command) else {
+            return .answer("Sorry, I couldn't process that — please try again.")
+        }
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        NSLog("[OV] route(\"%@\") -> %@", command, String(trimmed.prefix(120)))
+        if let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end,
+           let data = String(trimmed[start...end]).data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let action = (obj["face"] as? String)?.lowercased(),
+               ["remember", "identify", "forget", "list"].contains(action) {
+                let name = (obj["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return .face(FaceIntent(action: action, name: name))
+            }
+            if (obj["tool"] as? String)?.lowercased() == "web_search",
+               let query = (obj["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !query.isEmpty {
+                return .webSearch(query)
+            }
+        }
+        return .answer(trimmed)
+    }
+
+    /// Phrase a concise spoken answer to `question` using a web-search `result`. Falls back to the
+    /// model's own knowledge (flagged as uncertain) when the result is empty.
+    static func answerWithSearchResult(question: String, result: String, generate: Generate) async -> String {
+        let system = """
+        You are a voice assistant for smart glasses. Use the web search result to answer the user's question in 1-3 short spoken sentences. If the result is empty or unrelated, answer from your own knowledge and briefly say you're not certain of the very latest details. Do not mention "search result" or JSON.
+        """
+        let context = result.isEmpty ? "(no web result found)" : result
+        let user = "Question: \(question)\n\nWeb search result: \(context)"
+        if let out = await generate(system, user),
+           !out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return out.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result.isEmpty ? "I couldn't find that right now." : result
+    }
+}
+
+/// The surface VoiceAgentView needs from any on-device text model (Gemma or Apple).
+@MainActor
+protocol LocalTextLLM: AnyObject {
+    func routeCommand(_ command: String) async -> LocalAgent.RouteResult
+    func answerWithSearchResult(question: String, result: String) async -> String
+}

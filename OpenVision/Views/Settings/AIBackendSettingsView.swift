@@ -79,6 +79,16 @@ struct AIBackendSettingsView: View {
                 }
 
                 NavigationLink {
+                    AppleIntelligenceSettingsView()
+                } label: {
+                    HStack {
+                        Label("Apple Intelligence", systemImage: "apple.logo")
+                        Spacer()
+                        configurationBadge(configured: AppleFoundationService.shared.isAvailable)
+                    }
+                }
+
+                NavigationLink {
                     GemmaSettingsView()
                 } label: {
                     HStack {

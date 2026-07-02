@@ -186,6 +186,8 @@ struct VoiceAgentView: View {
                             await GeminiLiveService.shared.disconnect()
                         case .openAI:
                             break   // stateless HTTP — nothing to disconnect
+                        case .appleFoundation:
+                            break   // OS-managed — nothing to disconnect
                         case .localGemma:
                             // Keep the on-device model LOADED so the next "Ok Vision" is instant.
                             // Unloading + reloading the ~3.6GB model per conversation was the cause
@@ -457,6 +459,10 @@ struct VoiceAgentView: View {
                     try await OpenAIService.shared.connect()
                     // Stateless HTTP — photos are captured on-demand like OpenClaw.
 
+                case .appleFoundation:
+                    try await AppleFoundationService.shared.connect()
+                    // On-device Apple model — text only; camera commands guide to a cloud backend.
+
                 case .geminiLive:
                     try await GeminiLiveService.shared.connect()
                     // Start glasses streaming for Gemini Live mode
@@ -574,6 +580,8 @@ struct VoiceAgentView: View {
                 await GeminiLiveService.shared.disconnect()
             case .openAI:
                 break   // stateless HTTP — nothing to disconnect
+            case .appleFoundation:
+                break   // OS-managed — nothing to disconnect
             case .localGemma:
                 // Keep the on-device model loaded — see note in the .idle handler. Reloading it
                 // per conversation was what made "Ok Vision" slow/flaky.
@@ -719,6 +727,8 @@ struct VoiceAgentView: View {
                     await GeminiLiveService.shared.interrupt()
                 case .openAI:
                     break   // single request/response — nothing to interrupt
+                case .appleFoundation:
+                    AppleFoundationService.shared.interrupt()
                 case .localGemma:
                     GemmaLocalService.shared.interrupt()
                 }
@@ -765,6 +775,20 @@ struct VoiceAgentView: View {
             self.speakResponse(message)
         }
         OpenAIService.shared.onProcessingChanged = { (isProcessing: Bool) in
+            if isProcessing {
+                self.agentState = .thinking
+            } else if self.agentState == .thinking && !self.ttsService.isSpeaking {
+                self.agentState = self.isSessionActive ? .listening : .idle
+            }
+        }
+
+        // Apple Foundation callbacks (used only by the direct-message fallback path)
+        AppleFoundationService.shared.onAgentMessage = { (message: String) in
+            guard self.isSessionActive else { return }
+            self.aiTranscript = message
+            self.speakResponse(message)
+        }
+        AppleFoundationService.shared.onProcessingChanged = { (isProcessing: Bool) in
             if isProcessing {
                 self.agentState = .thinking
             } else if self.agentState == .thinking && !self.ttsService.isSpeaking {
@@ -885,6 +909,8 @@ struct VoiceAgentView: View {
                     await GeminiLiveService.shared.interrupt()
                 case .openAI:
                     break   // single request/response — nothing to interrupt
+                case .appleFoundation:
+                    AppleFoundationService.shared.interrupt()
                 case .localGemma:
                     GemmaLocalService.shared.interrupt()
                 }
@@ -990,29 +1016,10 @@ struct VoiceAgentView: View {
                 // Gemini Live handles response streaming via callbacks
 
             case .localGemma:
-                if isPhotoCommand {
-                    // Local Gemma is text-only for scene description (vision needs a cloud backend).
-                    print("[VoiceAgentView] Photo command on Local Gemma — text-only, guiding to cloud")
-                    agentState = isSessionActive ? .listening : .idle
-                    speakResponse("Local mode is text only. To use the camera to describe things, switch to Gemini or OpenClaw in Settings.")
-                } else {
-                    // ONE generation: the model either routes a face action or answers. Face
-                    // recognition (camera + Apple Vision) still runs on-device.
-                    switch await GemmaLocalService.shared.routeCommand(command) {
-                    case .face(let intent):
-                        await handleFaceIntent(intent)
-                        agentState = isSessionActive ? .listening : .idle
-                    case .webSearch(let query):
-                        NSLog("[OV] web search: \"%@\"", query)
-                        let result = await WebSearchService.search(query)
-                        let answer = await GemmaLocalService.shared.answerWithSearchResult(question: command, result: result)
-                        speakResponse(answer)
-                        agentState = isSessionActive ? .listening : .idle
-                    case .answer(let text):
-                        speakResponse(text)
-                        agentState = isSessionActive ? .listening : .idle
-                    }
-                }
+                await handleLocalCommand(command, llm: GemmaLocalService.shared, isPhotoCommand: isPhotoCommand)
+
+            case .appleFoundation:
+                await handleLocalCommand(command, llm: AppleFoundationService.shared, isPhotoCommand: isPhotoCommand)
             }
         } catch {
             errorMessage = "Failed to send command: \(error.localizedDescription)"
@@ -1247,6 +1254,28 @@ struct VoiceAgentView: View {
         return true
     }
 
+    /// Shared handling for the on-device text models (Gemma / Apple Foundation): one agentic
+    /// generation that routes a face action, a web search, or a direct spoken answer.
+    private func handleLocalCommand(_ command: String, llm: LocalTextLLM, isPhotoCommand: Bool) async {
+        if isPhotoCommand {
+            // On-device models are text-only for scene description — vision needs a cloud backend.
+            agentState = isSessionActive ? .listening : .idle
+            speakResponse("On-device mode is text only. To use the camera to describe things, switch to Gemini or OpenClaw in Settings.")
+            return
+        }
+        switch await llm.routeCommand(command) {
+        case .face(let intent):
+            await handleFaceIntent(intent)
+        case .webSearch(let query):
+            NSLog("[OV] web search: \"%@\"", query)
+            let result = await WebSearchService.search(query)
+            speakResponse(await llm.answerWithSearchResult(question: command, result: result))
+        case .answer(let text):
+            speakResponse(text)
+        }
+        agentState = isSessionActive ? .listening : .idle
+    }
+
     /// Carry out a face action (camera capture + Apple Vision), shared by the cloud-backend
     /// classifier path and the Local-backend single-pass router.
     private func handleFaceIntent(_ intent: GemmaLocalService.FaceIntent) async {
@@ -1305,6 +1334,9 @@ struct VoiceAgentView: View {
             try await OpenClawService.shared.sendMessage(prompt, imageData: imageData)
         case .openAI:
             try await OpenAIService.shared.sendMessage(prompt, imageData: imageData)
+        case .appleFoundation:
+            // Text-only — send the prompt, ignore the image.
+            await AppleFoundationService.shared.sendMessage(prompt)
         case .localGemma:
             try await GemmaLocalService.shared.sendMessage(prompt, imageData: imageData)
         case .geminiLive:

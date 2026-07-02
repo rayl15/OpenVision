@@ -262,12 +262,9 @@ final class GemmaLocalService: ObservableObject {
         setProcessing(false)
     }
 
-    // MARK: - Agentic intent routing
+    // MARK: - Agentic intent routing (shared logic lives in LocalAgent)
 
-    struct FaceIntent {
-        let action: String   // "remember" | "identify" | "forget" | "list"
-        let name: String     // person's name (may be empty for identify/list)
-    }
+    typealias FaceIntent = LocalAgent.FaceIntent
 
     /// Use the on-device model to decide whether a spoken command is a face-recognition request,
     /// and extract the action + name — no keyword matching. Returns nil if the model isn't loaded
@@ -308,88 +305,29 @@ final class GemmaLocalService: ObservableObject {
         return FaceIntent(action: action, name: name)
     }
 
-    enum RouteResult {
-        case face(FaceIntent)
-        case webSearch(String)   // search query
-        case answer(String)
-    }
+    typealias RouteResult = LocalAgent.RouteResult
 
-    /// ONE generation that either routes a face command OR answers normally. This replaces the
-    /// classify-then-answer pair (two generations), which doubled peak memory and tipped the app
-    /// over the 6GB jetsam limit. Still fully agentic — the model decides.
+    /// ONE generation that either routes a face command, requests a web search, or answers. Delegates
+    /// the prompt/parsing to LocalAgent (shared with the Apple Foundation backend).
     func routeCommand(_ command: String) async -> RouteResult {
-        let system = """
-        You are a voice assistant for smart glasses that can recognize faces the user has taught you. The glasses camera can see whoever is in front of the user — you do NOT need them to show you anyone.
-
-        If the user wants a face action, reply with ONLY one JSON object and nothing else (the app will take the photo):
-        - Identify / name the person in view: {"face":"identify","name":""}
-        - Save/remember the person under a name: {"face":"remember","name":"THE_NAME"}
-        - Forget a saved person: {"face":"forget","name":"THE_NAME"}
-        - List the people you know: {"face":"list","name":""}
-
-        Examples:
-        User: who is this → {"face":"identify","name":""}
-        User: who is he → {"face":"identify","name":""}
-        User: who is she → {"face":"identify","name":""}
-        User: who am I looking at → {"face":"identify","name":""}
-        User: do you know this person → {"face":"identify","name":""}
-        User: remember this is Sara → {"face":"remember","name":"Sara"}
-        User: her name is Priya → {"face":"remember","name":"Priya"}
-        User: save his face as Alex → {"face":"remember","name":"Alex"}
-        User: forget Sara → {"face":"forget","name":"Sara"}
-        User: who do you know → {"face":"list","name":""}
-
-        If the user asks about current or real-time information you can't be sure of — news, weather, sports scores, prices, who currently holds a role, recent events, or anything after your training — reply with ONLY: {"tool":"web_search","query":"A_CONCISE_SEARCH_QUERY"}
-        User: what's the weather in Tokyo → {"tool":"web_search","query":"weather in Tokyo"}
-        User: who won the game last night → {"tool":"web_search","query":"latest game result"}
-        User: what's the price of bitcoin → {"tool":"web_search","query":"bitcoin price"}
-
-        For anything else you already know (general questions, chat, facts, math), just answer helpfully in 1-3 short sentences. Do NOT mention faces, tools, or JSON.
-        """
-        let messages: [Chat.Message] = [
-            .init(role: .system, content: system),
-            .init(role: .user, content: command)
-        ]
-        guard let output = try? await rawGenerate(messages: messages, maxTokens: 200, temperature: 0.3) else {
-            return .answer("Sorry, I couldn't process that — please try again.")
+        await LocalAgent.route(command) { [weak self] system, user in
+            guard let self else { return nil }
+            return try? await self.rawGenerate(messages: [
+                .init(role: .system, content: system),
+                .init(role: .user, content: user)
+            ], maxTokens: 200, temperature: 0.3)
         }
-        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        NSLog("[OV] routeCommand(\"%@\") -> %@", command, String(trimmed.prefix(120)))
-        if let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end,
-           let data = String(trimmed[start...end]).data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let action = (obj["face"] as? String)?.lowercased(),
-               ["remember", "identify", "forget", "list"].contains(action) {
-                let name = (obj["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                return .face(FaceIntent(action: action, name: name))
-            }
-            if (obj["tool"] as? String)?.lowercased() == "web_search",
-               let query = (obj["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !query.isEmpty {
-                return .webSearch(query)
-            }
-        }
-        return .answer(trimmed)
     }
 
-    /// Phrase a concise spoken answer to `question` using a web-search `result`. Falls back to the
-    /// model's own knowledge (flagged as uncertain) when the result is empty.
+    /// Phrase a concise spoken answer to `question` using a web-search `result`.
     func answerWithSearchResult(question: String, result: String) async -> String {
-        let system = """
-        You are a voice assistant for smart glasses. Use the web search result to answer the user's question in 1-3 short spoken sentences. If the result is empty or unrelated, answer from your own knowledge and briefly say you're not certain of the very latest details. Do not mention "search result" or JSON.
-        """
-        let context = result.isEmpty ? "(no web result found)" : result
-        let user = "Question: \(question)\n\nWeb search result: \(context)"
-        let messages: [Chat.Message] = [
-            .init(role: .system, content: system),
-            .init(role: .user, content: user)
-        ]
-        if let out = try? await rawGenerate(messages: messages, maxTokens: 200, temperature: 0.4),
-           !out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return out.trimmingCharacters(in: .whitespacesAndNewlines)
+        await LocalAgent.answerWithSearchResult(question: question, result: result) { [weak self] system, user in
+            guard let self else { return nil }
+            return try? await self.rawGenerate(messages: [
+                .init(role: .system, content: system),
+                .init(role: .user, content: user)
+            ], maxTokens: 200, temperature: 0.4)
         }
-        // Generation failed — speak the raw result if we have one.
-        return result.isEmpty ? "I couldn't find that right now." : result
     }
 
     /// One-shot text generation (no streaming/callbacks) — used by the intent router.
@@ -434,3 +372,5 @@ final class GemmaLocalService: ObservableObject {
         }
     }
 }
+
+extension GemmaLocalService: LocalTextLLM {}

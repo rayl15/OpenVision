@@ -22,9 +22,12 @@
 		359A931F49DDF267F80B07B2 /* AudioPlaybackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 529F4C0838CFE7F8F55E28E4 /* AudioPlaybackService.swift */; };
 		37787EEECF8236DABFDE4D3D /* OVExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = 09CF2D46A856380011EEC513 /* OVExceptionCatcher.m */; };
 		3A3AC3A91A768EAE0B643B95 /* VoiceSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FEE8399255B598700D2F1F /* VoiceSelectionView.swift */; };
+		3CEB0ABE3CA96726C9FC7C3F /* AppleIntelligenceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BDBCEE6B3B8DF551525A4DA /* AppleIntelligenceSettingsView.swift */; };
 		3D871EEF1178A47F4999C7F2 /* AdditionalInstructionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516A0726470BFA8BD9B55F3F /* AdditionalInstructionsView.swift */; };
 		408073C736E7EB74442648EF /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 6ADFD2818BFD4713F6BDA7F7 /* MLXLMCommon */; };
+		49DFBFFE52D341E96BCE382E /* AppleFoundationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B97C063C947F53F6E209D1 /* AppleFoundationService.swift */; };
 		52E3A16AB6227CDA3D67817D /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2FD4A9B156D92B468B28864 /* AppSettings.swift */; };
+		53C17BBA774E7D3D4E295584 /* LocalAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE6F61B22736F87248FD0F5 /* LocalAgent.swift */; };
 		587295A93FA82DEBB18139BB /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CC70E5327BD07B920833FC /* GlassCard.swift */; };
 		5C474A09B3067A8ACD7546C1 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B78D6C28BEFF1F8426997C /* AudioCaptureService.swift */; };
 		62B472287A9628E0E6FB377D /* GemmaLocalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBB8B07B4970CA5F63B3B2A /* GemmaLocalService.swift */; };
@@ -92,6 +95,8 @@
 		8DD25C635E9A37E7D6CA7677 /* GlassesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesManager.swift; sourceTree = "<group>"; };
 		98C627C6F13B708A7A8D2CDA /* wake_word_ding.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = wake_word_ding.mp3; sourceTree = "<group>"; };
 		9BCCC84E6880175BD83F37FD /* ConversationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationManager.swift; sourceTree = "<group>"; };
+		9BDBCEE6B3B8DF551525A4DA /* AppleIntelligenceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleIntelligenceSettingsView.swift; sourceTree = "<group>"; };
+		A7B97C063C947F53F6E209D1 /* AppleFoundationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationService.swift; sourceTree = "<group>"; };
 		A900F00D2451513A29BC4C6F /* AIBackendProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendProtocol.swift; sourceTree = "<group>"; };
 		ADC230E2AE44E5132DC5AB01 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		ADCFF581A7AE50FBF35EA257 /* GeminiLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiLiveService.swift; sourceTree = "<group>"; };
@@ -107,6 +112,7 @@
 		C539AB340611B1A6CCC50F17 /* OpenClawService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawService.swift; sourceTree = "<group>"; };
 		CAD745CF110FC8C25A5B34D8 /* HapticFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticFeedback.swift; sourceTree = "<group>"; };
 		CE2B8AE1E195B62D980BEA66 /* SoundService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundService.swift; sourceTree = "<group>"; };
+		CEE6F61B22736F87248FD0F5 /* LocalAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAgent.swift; sourceTree = "<group>"; };
 		D1428DBC281E476E9331F9B4 /* OpenVision-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "OpenVision-Bridging-Header.h"; sourceTree = "<group>"; };
 		D416290774C17FDC0DDFBC68 /* TTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSService.swift; sourceTree = "<group>"; };
 		DFBB8B07B4970CA5F63B3B2A /* GemmaLocalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaLocalService.swift; sourceTree = "<group>"; };
@@ -140,6 +146,7 @@
 			children = (
 				516A0726470BFA8BD9B55F3F /* AdditionalInstructionsView.swift */,
 				57A8327E5265287A0C89DE3D /* AIBackendSettingsView.swift */,
+				9BDBCEE6B3B8DF551525A4DA /* AppleIntelligenceSettingsView.swift */,
 				773753CA73EBA9F8C78BD8E4 /* GeminiSettingsView.swift */,
 				C1BFC8380B5BDA0778E04EAB /* GemmaSettingsView.swift */,
 				ED25EC5E800C216965A50F8A /* GlassesSettingsView.swift */,
@@ -279,9 +286,11 @@
 			isa = PBXGroup;
 			children = (
 				F5B2AD1E1FABED62439F7733 /* AIBackend */,
+				95CA46C43A53365AD4139930 /* AppleFoundation */,
 				A29C7061AA685E560166CE85 /* Audio */,
 				2250FA48F206C7E76373000D /* GeminiLive */,
 				B929FE4E9AB889620F64C057 /* GemmaLocal */,
+				AFC04292177BAB72780D70D7 /* LocalAgent */,
 				867CD5E802B9354B21C23D0B /* OpenClaw */,
 				C6EBF5734AD805262779ECA5 /* TTS */,
 				FE408AE66B4AA82F2C43B752 /* Vision */,
@@ -309,6 +318,14 @@
 			path = OpenClaw;
 			sourceTree = "<group>";
 		};
+		95CA46C43A53365AD4139930 /* AppleFoundation */ = {
+			isa = PBXGroup;
+			children = (
+				A7B97C063C947F53F6E209D1 /* AppleFoundationService.swift */,
+			);
+			path = AppleFoundation;
+			sourceTree = "<group>";
+		};
 		A29C7061AA685E560166CE85 /* Audio */ = {
 			isa = PBXGroup;
 			children = (
@@ -318,6 +335,14 @@
 				CE2B8AE1E195B62D980BEA66 /* SoundService.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		AFC04292177BAB72780D70D7 /* LocalAgent */ = {
+			isa = PBXGroup;
+			children = (
+				CEE6F61B22736F87248FD0F5 /* LocalAgent.swift */,
+			);
+			path = LocalAgent;
 			sourceTree = "<group>";
 		};
 		B873D46B8543EB29620F1E51 /* Managers */ = {
@@ -517,6 +542,8 @@
 				3D871EEF1178A47F4999C7F2 /* AdditionalInstructionsView.swift in Sources */,
 				6878487E101CAC3A8BF651E9 /* AnimatedBackground.swift in Sources */,
 				52E3A16AB6227CDA3D67817D /* AppSettings.swift in Sources */,
+				49DFBFFE52D341E96BCE382E /* AppleFoundationService.swift in Sources */,
+				3CEB0ABE3CA96726C9FC7C3F /* AppleIntelligenceSettingsView.swift in Sources */,
 				5C474A09B3067A8ACD7546C1 /* AudioCaptureService.swift in Sources */,
 				359A931F49DDF267F80B07B2 /* AudioPlaybackService.swift in Sources */,
 				A7A3B0467B07F116AEF20BEE /* AudioSessionManager.swift in Sources */,
@@ -535,6 +562,7 @@
 				BE99A2B1118292BBC7E1FC59 /* GlassesManager.swift in Sources */,
 				E93E2788532682366707A34D /* GlassesSettingsView.swift in Sources */,
 				29F56C03229677BC1F157CEC /* HapticFeedback.swift in Sources */,
+				53C17BBA774E7D3D4E295584 /* LocalAgent.swift in Sources */,
 				CDA89E5AAAF25713C6321971 /* MainTabView.swift in Sources */,
 				341497F0AA31AE9C6E137386 /* MemoriesView.swift in Sources */,
 				37787EEECF8236DABFDE4D3D /* OVExceptionCatcher.m in Sources */,
