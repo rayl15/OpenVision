@@ -516,7 +516,12 @@ struct VoiceAgentView: View {
         guard settingsManager.settings.wakeWordEnabled,
               voiceCommandService.authorizationStatus == .authorized else { return }
         voiceCommandService.stopListening()
-        try? AudioSessionManager.shared.configureForGlasses()
+        // Glasses → Bluetooth HFP; phone-only → built-in mic + LOUD speaker (else TTS is inaudible).
+        if glassesAudioAvailable {
+            try? AudioSessionManager.shared.configureForGlasses()
+        } else {
+            try? AudioSessionManager.shared.configureForPhone()
+        }
         do {
             try voiceCommandService.startListening()
             print("[VoiceAgentView] ✓ Restored wake-word listening after camera use")
@@ -526,9 +531,19 @@ struct VoiceAgentView: View {
     }
 
     /// Configure audio routing to use glasses mic/speaker if available
+    /// True only when the glasses are actually reachable as a Bluetooth audio device. Registration
+    /// alone isn't enough — the glasses can be registered but powered off / not worn, which would
+    /// route TTS to the silent earpiece. When false, use the phone's loud speaker.
+    private var glassesAudioAvailable: Bool {
+        glassesManager.isRegistered && AudioSessionManager.shared.isBluetoothAvailable
+    }
+
     private func configureAudioForGlasses() {
-        guard glassesManager.isRegistered else {
-            print("[VoiceAgentView] Glasses not registered, using iPhone audio")
+        guard glassesAudioAvailable else {
+            // No glasses audio (not registered, or registered but off/disconnected): use the
+            // phone's LOUD speaker so spoken responses are audible — not the quiet earpiece.
+            print("[VoiceAgentView] No glasses audio route — using iPhone speaker")
+            try? AudioSessionManager.shared.configureForPhone()
             return
         }
 

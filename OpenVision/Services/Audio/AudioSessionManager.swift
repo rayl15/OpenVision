@@ -141,6 +141,26 @@ final class AudioSessionManager {
         print("[AudioSession] Configured for glasses (Bluetooth HFP)")
     }
 
+    /// Configure audio for phone-only use (no glasses): record from the built-in mic and play
+    /// spoken responses out of the LOUD speaker. Without `.defaultToSpeaker`, `.playAndRecord`
+    /// routes output to the quiet earpiece — which is why phone-only audio was inaudible.
+    /// `.allowBluetoothA2DP` still lets AirPods / other Bluetooth audio work when present.
+    func configureForPhone() throws {
+        try audioSession.setCategory(
+            .playAndRecord,
+            mode: .default,
+            options: [.defaultToSpeaker, .allowBluetoothA2DP]
+        )
+        try audioSession.setActive(true)
+        // If still routed to the quiet earpiece (carried over from a glasses/voiceChat config),
+        // force the loud speaker — but leave AirPods / headphones alone if they're connected.
+        if audioSession.currentRoute.outputs.contains(where: { $0.portType == .builtInReceiver }) {
+            try? audioSession.overrideOutputAudioPort(.speaker)
+        }
+        currentMode = .voiceChat
+        print("[AudioSession] Configured for phone (built-in mic + loud speaker)")
+    }
+
     /// Find Bluetooth HFP input port
     private func findBluetoothHFPInput() -> AVAudioSessionPortDescription? {
         for input in audioSession.availableInputs ?? [] {
