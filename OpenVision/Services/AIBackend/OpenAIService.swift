@@ -58,6 +58,10 @@ final class OpenAIService: ObservableObject {
         if !system.isEmpty {
             messages.append(["role": "system", "content": system])
         }
+        // Prior turns so follow-up questions work ("what's its population?").
+        for turn in ConversationContext.shared.turns {
+            messages.append(["role": turn.role, "content": turn.content])
+        }
         messages.append(["role": "user", "content": userContent])
 
         let body: [String: Any] = [
@@ -85,6 +89,7 @@ final class OpenAIService: ObservableObject {
         guard let reply = Self.firstMessageContent(from: data), !reply.isEmpty else {
             throw OpenAIError.emptyReply
         }
+        ConversationContext.shared.record(user: text, assistant: reply)
         onAgentMessage?(reply)
     }
 

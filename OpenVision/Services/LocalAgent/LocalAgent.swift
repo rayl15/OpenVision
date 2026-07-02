@@ -20,31 +20,38 @@ enum LocalAgent {
         case answer(String)
     }
 
-    /// A backend's one-shot generation primitive: (systemPrompt, userText) -> text (nil on failure).
-    typealias Generate = (_ system: String, _ user: String) async -> String?
+    /// A backend's generation primitive: (systemPrompt, priorTurns, userText) -> text (nil on failure).
+    typealias Generate = (_ system: String, _ history: [ConversationContext.Turn], _ user: String) async -> String?
 
     /// ONE generation that either routes a face command, requests a web search, or answers directly.
-    static func route(_ command: String, generate: Generate) async -> RouteResult {
+    /// `history` gives the model recent turns so follow-up questions work.
+    static func route(_ command: String, history: [ConversationContext.Turn], generate: Generate) async -> RouteResult {
         let system = """
-        You are a voice assistant for smart glasses that can recognize faces the user has taught you. The glasses camera can see whoever is in front of the user — you do NOT need them to show you anyone.
+        You are a voice assistant for smart glasses that can recognize faces the user has taught you.
 
-        If the user wants a face action, reply with ONLY one JSON object and nothing else (the app will take the photo):
-        - Identify / name the person in view: {"face":"identify","name":""}
-        - Save/remember the person under a name: {"face":"remember","name":"THE_NAME"}
+        Face actions apply ONLY to a real person PHYSICALLY IN FRONT of the user right now (seen through the glasses camera). If the user names a person, or asks about a public/famous/historical figure, or asks a general "who is…" question, that is NOT a face action — answer it or search instead.
+
+        If (and only if) the user wants a face action, reply with ONLY one JSON object and nothing else:
+        - Identify the person currently in view: {"face":"identify","name":""}
+        - Save/remember the person in view under a name: {"face":"remember","name":"THE_NAME"}
         - Forget a saved person: {"face":"forget","name":"THE_NAME"}
         - List the people you know: {"face":"list","name":""}
 
-        Examples:
+        Examples (face actions — someone is in front of the user):
         User: who is this → {"face":"identify","name":""}
-        User: who is he → {"face":"identify","name":""}
-        User: who is she → {"face":"identify","name":""}
+        User: who is this person → {"face":"identify","name":""}
         User: who am I looking at → {"face":"identify","name":""}
-        User: do you know this person → {"face":"identify","name":""}
+        User: do you know this person in front of me → {"face":"identify","name":""}
         User: remember this is Sara → {"face":"remember","name":"Sara"}
-        User: her name is Priya → {"face":"remember","name":"Priya"}
         User: save his face as Alex → {"face":"remember","name":"Alex"}
         User: forget Sara → {"face":"forget","name":"Sara"}
         User: who do you know → {"face":"list","name":""}
+
+        Examples (NOT face actions — answer or search, never a face action):
+        User: who is Elon Musk → (answer normally)
+        User: who is the prime minister of India → (search / answer)
+        User: who won the match → (search)
+        User: who wrote Hamlet → (answer normally)
 
         Use a web search if EITHER is true: the user asks about current/real-time information (news, weather, sports scores, prices, recent events), OR you don't know the answer, aren't fully confident, or your knowledge may be outdated. In that case reply with ONLY: {"tool":"web_search","query":"A_CONCISE_SEARCH_QUERY"}. Never tell the user you don't know without searching first.
         User: what's the weather in Tokyo → {"tool":"web_search","query":"weather in Tokyo"}
@@ -54,7 +61,7 @@ enum LocalAgent {
 
         Only answer directly (no search) when you are genuinely confident it's stable, well-known info — math, definitions, general facts. Then answer in 1-3 short sentences. Do NOT mention faces, tools, or JSON.
         """
-        guard let output = await generate(system, command) else {
+        guard let output = await generate(system, history, command) else {
             return .answer("Sorry, I couldn't process that — please try again.")
         }
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -84,7 +91,7 @@ enum LocalAgent {
         """
         let context = result.isEmpty ? "(no web result found)" : result
         let user = "Question: \(question)\n\nWeb search result: \(context)"
-        if let out = await generate(system, user),
+        if let out = await generate(system, [], user),
            !out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return out.trimmingCharacters(in: .whitespacesAndNewlines)
         }

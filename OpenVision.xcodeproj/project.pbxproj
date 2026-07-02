@@ -55,6 +55,7 @@
 		C3B4CF9D8B6EC21957CC7BEF /* OpenClawProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7946C8232CEA5A362056AC2A /* OpenClawProtocol.swift */; };
 		CDA89E5AAAF25713C6321971 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 266032AAD0DF8037A64CAB15 /* MainTabView.swift */; };
 		D78274C690CE91F7747815F8 /* thinking_loop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3846720B6096149DBB5ED5A9 /* thinking_loop.mp3 */; };
+		DB74FBBD6B28327F7C12D1CA /* ConversationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6C681A43DB7DFF78CFE722 /* ConversationContext.swift */; };
 		DBAD28D914AC862DB5E6F367 /* ConversationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BCCC84E6880175BD83F37FD /* ConversationManager.swift */; };
 		E002D977473CAE9959691682 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6188DD26571BACB30096654D /* Conversation.swift */; };
 		E93E2788532682366707A34D /* GlassesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED25EC5E800C216965A50F8A /* GlassesSettingsView.swift */; };
@@ -119,6 +120,7 @@
 		E553EFA930E3B93EEA8F0AB6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EAFCA981F220C3F978645D70 /* OpenClawSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawSettingsView.swift; sourceTree = "<group>"; };
 		ED25EC5E800C216965A50F8A /* GlassesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesSettingsView.swift; sourceTree = "<group>"; };
+		EE6C681A43DB7DFF78CFE722 /* ConversationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationContext.swift; sourceTree = "<group>"; };
 		F1FEE8399255B598700D2F1F /* VoiceSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSelectionView.swift; sourceTree = "<group>"; };
 		FFDF4A693D2CEB248757FBD3 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -340,6 +342,7 @@
 		AFC04292177BAB72780D70D7 /* LocalAgent */ = {
 			isa = PBXGroup;
 			children = (
+				EE6C681A43DB7DFF78CFE722 /* ConversationContext.swift */,
 				CEE6F61B22736F87248FD0F5 /* LocalAgent.swift */,
 			);
 			path = LocalAgent;
@@ -550,6 +553,7 @@
 				3069D5D002C64029E1A09728 /* Config.swift in Sources */,
 				AF2C901CA288086B7EBA6083 /* Constants.swift in Sources */,
 				E002D977473CAE9959691682 /* Conversation.swift in Sources */,
+				DB74FBBD6B28327F7C12D1CA /* ConversationContext.swift in Sources */,
 				788325C7CD43F35F069DCDCE /* ConversationListView.swift in Sources */,
 				DBAD28D914AC862DB5E6F367 /* ConversationManager.swift in Sources */,
 				79216FADF7B5CD556FD6FDEE /* FaceRecognitionService.swift in Sources */,

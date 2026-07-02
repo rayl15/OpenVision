@@ -442,6 +442,10 @@ struct VoiceAgentView: View {
         isSessionActive = true
         agentState = .connecting
 
+        // Fresh conversation context for this session (follow-ups within the session keep context).
+        ConversationContext.shared.clear()
+        AppleFoundationService.shared.resetContext()
+
         // Configure audio routing for glasses if registered
         configureAudioForGlasses()
 
@@ -1284,9 +1288,12 @@ struct VoiceAgentView: View {
         case .webSearch(let query):
             NSLog("[OV] web search: \"%@\"", query)
             let result = await WebSearchService.search(query)
-            speakResponse(await llm.answerWithSearchResult(question: command, result: result))
+            let answer = await llm.answerWithSearchResult(question: command, result: result)
+            speakResponse(answer)
+            ConversationContext.shared.record(user: command, assistant: answer)
         case .answer(let text):
             speakResponse(text)
+            ConversationContext.shared.record(user: command, assistant: text)
         }
         agentState = isSessionActive ? .listening : .idle
     }

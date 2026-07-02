@@ -310,18 +310,21 @@ final class GemmaLocalService: ObservableObject {
     /// ONE generation that either routes a face command, requests a web search, or answers. Delegates
     /// the prompt/parsing to LocalAgent (shared with the Apple Foundation backend).
     func routeCommand(_ command: String) async -> RouteResult {
-        await LocalAgent.route(command) { [weak self] system, user in
+        let history = ConversationContext.shared.turns
+        return await LocalAgent.route(command, history: history) { [weak self] system, hist, user in
             guard let self else { return nil }
-            return try? await self.rawGenerate(messages: [
-                .init(role: .system, content: system),
-                .init(role: .user, content: user)
-            ], maxTokens: 200, temperature: 0.3)
+            var messages: [Chat.Message] = [.init(role: .system, content: system)]
+            for turn in hist {
+                messages.append(.init(role: turn.role == "assistant" ? .assistant : .user, content: turn.content))
+            }
+            messages.append(.init(role: .user, content: user))
+            return try? await self.rawGenerate(messages: messages, maxTokens: 200, temperature: 0.3)
         }
     }
 
     /// Phrase a concise spoken answer to `question` using a web-search `result`.
     func answerWithSearchResult(question: String, result: String) async -> String {
-        await LocalAgent.answerWithSearchResult(question: question, result: result) { [weak self] system, user in
+        await LocalAgent.answerWithSearchResult(question: question, result: result) { [weak self] system, _, user in
             guard let self else { return nil }
             return try? await self.rawGenerate(messages: [
                 .init(role: .system, content: system),

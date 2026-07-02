@@ -55,7 +55,14 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
 
     @Published private(set) var isConnected = false
 
+    /// Persistent answer session (type-erased so the property isn't iOS-26-gated). Reused across
+    /// turns so Apple's model keeps conversation context natively. Cleared per session.
+    private var answerSessionBox: Any?
+
     private init() {}
+
+    /// Drop the conversation context — call when a new voice session starts.
+    func resetContext() { answerSessionBox = nil }
 
     // MARK: - Availability
 
@@ -120,12 +127,14 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
     // MARK: - LocalTextLLM (routing via Apple guided generation)
 
     private static let routingInstructions = """
-    You are a router for a smart-glasses voice assistant. Classify the user's request into one action:
-    - identify: they want to know who the person in front of them is ("who is this / who is he")
-    - remember: they want to save a person's face under a name (extract the name)
-    - forget: they want to remove a saved person (extract the name)
-    - list: they want the list of people you know
-    - other: anything else (a question, chat, or a request for current info)
+    You are a router for a smart-glasses voice assistant. Face actions apply ONLY to a real person physically in front of the user right now (seen through the glasses camera) — NOT to named, famous, or historical people, and NOT to general "who is…" questions. Classify the user's request into one action:
+    - identify: who is the person IN FRONT of me right now ("who is this", "who is this person", "who am I looking at")
+    - remember: save the face of the person in view under a name (extract the name)
+    - forget: remove a saved person (extract the name)
+    - list: list the people you know
+    - other: anything else — a question, chat, a request for current info, or any "who is <named or famous person>" (e.g. "who is Elon Musk", "who is the president")
+
+    When unsure, choose "other". Only pick a face action when the user clearly means a person physically present.
     """
 
     private static let assistantInstructions = """
@@ -152,10 +161,16 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
                 if ["identify", "remember", "forget", "list"].contains(action) {
                     return .face(.init(action: action, name: decision.name))
                 }
-                // 2) Everything else → answer with a web-search-equipped session. The model calls
-                //    web_search itself when needed and treats the result as its own retrieval, so it
-                //    gives a grounded answer instead of disclaiming a training cutoff.
-                let session = LanguageModelSession(tools: [AppleWebSearchTool()], instructions: Self.assistantInstructions)
+                // 2) Everything else → answer with a web-search-equipped session that PERSISTS
+                //    across turns, so the model keeps conversation context (follow-up questions
+                //    work) and calls web_search itself when it needs live info.
+                let session: LanguageModelSession
+                if let existing = answerSessionBox as? LanguageModelSession {
+                    session = existing
+                } else {
+                    session = LanguageModelSession(tools: [AppleWebSearchTool()], instructions: Self.assistantInstructions)
+                    answerSessionBox = session
+                }
                 let response = try await session.respond(to: command)
                 return .answer(response.content)
             } catch {
@@ -170,7 +185,7 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
 
     func answerWithSearchResult(question: String, result: String) async -> String {
         // Plain natural-language summary works fine on Apple's model.
-        await LocalAgent.answerWithSearchResult(question: question, result: result) { [weak self] system, user in
+        await LocalAgent.answerWithSearchResult(question: question, result: result) { [weak self] system, _, user in
             await self?.generate(system: system, user: user)
         }
     }
