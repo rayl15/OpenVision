@@ -169,6 +169,92 @@ final class GemmaLocalService: ObservableObject {
         onDisconnected?()
     }
 
+    // MARK: - On-disk model management
+
+    /// Every base directory where the Hugging Face hub cache could live in an iOS sandbox. The
+    /// downloaded model snapshots live under `<base>/huggingface/...`, so nuking these frees them
+    /// regardless of the exact cache-location resolution.
+    nonisolated private static func dirSizeBytes(_ url: URL) -> Int64 {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else { return 0 }
+        if !isDir.boolValue {
+            let v = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey])
+            return Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
+        }
+        var total: Int64 = 0
+        if let en = fm.enumerator(at: url, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]) {
+            for case let f as URL in en {
+                let v = try? f.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey])
+                total += Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
+            }
+        }
+        return total
+    }
+
+    /// Every on-disk location that holds downloaded model data or its leftovers, so deleting them
+    /// actually frees the storage. Covers the LiteRT model dirs, the HuggingFace/MLX cache, the
+    /// XNNPACK compile caches, and orphaned CFNetwork download temp files.
+    nonisolated private static func modelDataURLs() -> [URL] {
+        let fm = FileManager.default
+        var urls: [URL] = []
+
+        // LiteRT/MediaPipe model + cache in Documents.
+        if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+            urls.append(docs.appendingPathComponent("GemmaModels", isDirectory: true))
+            urls.append(docs.appendingPathComponent("GemmaCache", isDirectory: true))
+        }
+        // HuggingFace / MLX snapshot cache (if that path is ever used).
+        for dir in [FileManager.SearchPathDirectory.cachesDirectory, .applicationSupportDirectory] {
+            if let base = fm.urls(for: dir, in: .userDomainMask).first {
+                urls.append(base.appendingPathComponent("huggingface", isDirectory: true))
+            }
+        }
+        // tmp leftovers: XNNPACK compile caches + half-finished CFNetwork downloads.
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        if let items = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil) {
+            for item in items {
+                let n = item.lastPathComponent
+                if n.hasSuffix(".xnnpack_cache") || n.hasSuffix(".litertlm") || n.hasPrefix("CFNetworkDownload_") {
+                    urls.append(item)
+                }
+            }
+        }
+        return urls
+    }
+
+    /// Total on-disk size of all downloaded model data, in bytes (0 if none).
+    nonisolated static func downloadedSizeBytes(for modelId: String = "") -> Int64 {
+        modelDataURLs().reduce(0) { $0 + dirSizeBytes($1) }
+    }
+
+    /// Delete all downloaded model data from disk to free storage. Unloads from memory first.
+    func deleteDownloadedModel(_ modelId: String) async -> Bool {
+        // Drop the in-memory model so we're not holding files we're about to remove.
+        modelContainer = nil
+        loadedModelId = nil
+        isModelLoaded = false
+        Memory.clearCache()
+        setState(.disconnected)
+
+        return await Task.detached {
+            let fm = FileManager.default
+            var removedAny = false
+            for url in Self.modelDataURLs() where fm.fileExists(atPath: url.path) {
+                let mb = Self.dirSizeBytes(url) / 1_048_576
+                do {
+                    try fm.removeItem(at: url)
+                    NSLog("[OV] deleted %@ (%lld MB)", url.lastPathComponent, mb)
+                    removedAny = true
+                } catch {
+                    NSLog("[OV] delete failed at %@: %@", url.path, "\(error)")
+                }
+            }
+            if !removedAny { NSLog("[OV] deleteModel: nothing found to remove") }
+            return true
+        }.value
+    }
+
     // MARK: - Generation
 
     /// Send a prompt and return the full reply via `onAgentMessage`. When `imageData` is provided

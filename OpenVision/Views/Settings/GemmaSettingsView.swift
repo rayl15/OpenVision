@@ -10,6 +10,13 @@ struct GemmaSettingsView: View {
     @State private var selectedModel: GemmaLocalModel = .e2b
     @State private var isDownloading = false
     @State private var downloadError: String?
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var modelSizeBytes: Int64 = 0
+
+    private var sizeText: String {
+        ByteCountFormatter.string(fromByteCount: modelSizeBytes, countStyle: .file)
+    }
 
     var body: some View {
         Form {
@@ -74,11 +81,56 @@ struct GemmaSettingsView: View {
                     Text("The first download is several GB — keep the app open and use Wi-Fi.")
                 }
             }
+
+            // Free up storage whenever there's model data on disk — even if the app's "ready" flag
+            // is off (e.g. orphaned files left by a previous incomplete delete).
+            if modelSizeBytes > 0 && !isDownloading {
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        HStack {
+                            Label(isDeleting ? "Deleting…" : "Delete Downloaded Model", systemImage: "trash")
+                            Spacer()
+                            Text(sizeText).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(isDeleting)
+                } footer: {
+                    Text("Removes \(sizeText) of model data from your phone. You can download it again anytime.")
+                }
+            }
         }
         .navigationTitle("Local Gemma")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             selectedModel = GemmaLocalModel.from(modelId: settingsManager.settings.localGemmaModelId)
+            refreshSize()
+        }
+        .alert("Delete downloaded model?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) { deleteModel() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(modelSizeBytes > 0
+                 ? "This frees up \(sizeText) of storage. You can re-download it anytime."
+                 : "You can re-download it anytime.")
+        }
+    }
+
+    private func refreshSize() {
+        modelSizeBytes = GemmaLocalService.downloadedSizeBytes(for: selectedModel.modelId)
+    }
+
+    private func deleteModel() {
+        isDeleting = true
+        Task {
+            let ok = await GemmaLocalService.shared.deleteDownloadedModel(selectedModel.modelId)
+            if ok {
+                settingsManager.settings.localGemmaModelReady = false
+                settingsManager.saveNow()
+                modelSizeBytes = 0
+            }
+            isDeleting = false
         }
     }
 
