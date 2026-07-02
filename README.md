@@ -45,15 +45,20 @@
 ## Features
 
 ### Five AI Backends — Cloud or Fully On-Device
-- **Local (Gemma 4)**: On-device Gemma 4 via Apple MLX — private, offline, **zero API cost**. Text tier for chat + agentic commands (vision handled by a cloud backend).
+- **Local (MLX)**: A **choice of on-device models** via Apple MLX — Qwen 2.5 (0.5B/3B), Gemma 2 2B, Gemma 4 E2B, SmolVLM2 2.2B — so you can trade capability for memory/speed. Private, offline, **zero API cost**.
 - **Apple Intelligence**: Apple's on-device Foundation Model (iOS 26+). **No download, no memory pressure** (OS-managed), private and offline. Uses guided generation + Apple's native tool-calling.
 - **OpenClaw**: Wake word activation, 56+ tools, task execution via WebSocket
 - **Gemini Live**: Real-time voice + vision with native audio streaming
 - **OpenAI**: GPT-4o text + vision over the Chat Completions API — works with any **OpenAI-compatible** endpoint (OpenRouter, Groq, local servers, etc.)
 
-### Agentic Web Search — Answers When It Doesn't Know
-- The on-device models **search the web whenever they're unsure or don't know** — not just for "news" — and never answer "I don't know" without trying first.
-- **Free, no API key** (DuckDuckGo). Gemma summarizes the results; Apple calls a native `web_search` tool and answers grounded.
+### On-Device Neural Voice (Kokoro)
+- A **natural, offline, private voice** (Kokoro-82M) running on-device via MLX — selectable from a Speech Engine dropdown with a voice picker.
+- Apple's system voice stays the default (with Premium/Enhanced voice support); Kokoro is the upgrade when you want lifelike speech with **nothing leaving the phone**.
+
+### Agentic Web Search — Real Live Information
+- The models **search the web whenever they're unsure or asked about current things** — news, weather, prices, scores — and never answer "I can't access real-time data" without trying.
+- **Tavily** (free tier) returns real live content for the model to summarize; **DuckDuckGo** is the keyless fallback.
+- Smart flow: local models **reformulate + retry** a weak query; the OpenAI backend runs a real **function-calling loop** (call `web_search` → refine → answer).
 
 ### Conversation Memory
 - Multi-turn context on the on-device and OpenAI backends: *"What's the capital of France?"* → *"What's **its** population?"* just works.
@@ -73,7 +78,7 @@
 - Audio routes correctly whether you're using the glasses or the phone alone (loud speaker, not the earpiece)
 
 ### On-Device Model Management
-- Download the Local Gemma model on demand, and **delete it to reclaim storage** (~11 GB) anytime from Settings — re-download whenever you want.
+- Pick a local model, **download it on demand**, and **delete it to reclaim storage** anytime from Settings — swap between a tiny 0.5B model and a larger one as you like.
 
 ### Glasses Integration
 - Photo capture on voice command ("take a photo")
@@ -119,11 +124,11 @@
 ### Prerequisites
 
 - macOS with Xcode 15+
-- Physical iOS 18+ device (simulator doesn't support Bluetooth; on-device Gemma needs iOS 18)
+- Physical iOS 18+ device (simulator doesn't support Bluetooth; on-device MLX models need iOS 18)
 - Meta Ray-Ban smart glasses
 - Meta Developer account for glasses registration
 - An AI backend — one of:
-  - **Local (Gemma 4)** — no account/key needed; runs on-device (needs a recent iPhone, e.g. 15 Pro/16/17)
+  - **Local (MLX)** — no account/key needed; a choice of on-device models (Qwen 2.5, Gemma, SmolVLM). Runs on a recent iPhone (e.g. 15 Pro/16/17)
   - **Apple Intelligence** — no key or download; needs iOS 26+ on an Apple-Intelligence device (iPhone 15 Pro and newer)
   - [OpenClaw](https://github.com/openclaw/openclaw) instance
   - [Gemini API key](https://aistudio.google.com/app/apikey)
@@ -237,7 +242,7 @@ You: "Stop video"                        → Returns to OpenClaw mode
 
 | Backend | Voice | Vision | Cost / Privacy | Best For |
 |---------|-------|--------|----------------|----------|
-| **Local (Gemma 4)** | Wake word + Apple STT | via a cloud backend | Free · **fully on-device** | Private chat, face commands, offline |
+| **Local (MLX)** | Wake word + Apple STT | via a cloud backend | Free · **fully on-device** | Private chat, face commands, offline — pick Qwen/Gemma/SmolVLM |
 | **Apple Intelligence** | Wake word + Apple STT | via a cloud backend | Free · **on-device, no download** | Private chat on iOS 26+ devices, lowest setup |
 | **OpenClaw** | Wake word + Apple STT | Photo on request | Self-hosted | Tasks, 56+ tools, control |
 | **Gemini Live** | Native VAD (always on) | Continuous 1fps video | Cloud API | Natural, low-latency conversation |
@@ -252,9 +257,10 @@ Face recognition, web search, and conversation memory all run on the **on-device
 ### AI Section
 | Setting | Description |
 |---------|-------------|
-| **AI Backend** | Choose Local (Gemma 4), Apple Intelligence, OpenClaw, Gemini Live, or OpenAI |
-| **Local (Gemma 4)** | Download / select the on-device model, or **delete it to reclaim storage** |
+| **AI Backend** | Choose Local (MLX), Apple Intelligence, OpenClaw, Gemini Live, or OpenAI |
+| **Local (MLX)** | Pick a model (Qwen 2.5, Gemma, SmolVLM), download it, or **delete to reclaim storage** |
 | **Apple Intelligence** | On-device model status (no key or download needed; iOS 26+) |
+| **Web Search** | **Tavily** key for real live results (news/prices/scores); DuckDuckGo fallback |
 | **OpenClaw Gateway** | WebSocket URL (e.g., `wss://localhost:18789`) |
 | **OpenClaw Token** | Authentication token |
 | **Gemini API Key** | Google API key |
@@ -293,14 +299,15 @@ Face recognition, web search, and conversation memory all run on the **on-device
 │  Services                                                       │
 │  ├── OpenClawService     WebSocket client, auto-reconnect       │
 │  ├── GeminiLiveService   Native audio/video WebSocket           │
-│  ├── OpenAIService       Chat Completions (text + vision)       │
-│  ├── GemmaLocalService   On-device Gemma 4 via MLX + routing    │
+│  ├── OpenAIService       Chat Completions + web_search loop     │
+│  ├── GemmaLocalService   On-device MLX models (LLM + VLM)       │
 │  ├── AppleFoundationService  Apple Intelligence (iOS 26 model)  │
 │  ├── LocalAgent          Shared agentic routing + conversation  │
-│  ├── WebSearchService    Free web search (DuckDuckGo)           │
+│  ├── WebSearchService    Web search (Tavily + DuckDuckGo)       │
+│  ├── KokoroTTSService    On-device neural voice (Kokoro/MLX)    │
 │  ├── FaceRecognitionService  On-device faces (Apple Vision)     │
 │  ├── VoiceCommandService Wake word detection, Apple STT         │
-│  ├── TTSService          Text-to-speech                         │
+│  ├── TTSService          Apple text-to-speech                   │
 │  ├── AudioCaptureService Microphone input for Gemini            │
 │  └── AudioPlaybackService Speaker output for Gemini             │
 ├─────────────────────────────────────────────────────────────────┤
@@ -422,12 +429,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 - [Meta Wearables DAT SDK](https://github.com/facebook/meta-wearables-dat-ios) - Glasses integration
-- [Apple MLX](https://github.com/ml-explore/mlx-swift-lm) - On-device Gemma 4 inference
+- [Apple MLX](https://github.com/ml-explore/mlx-swift-lm) - On-device model inference (Qwen, Gemma, SmolVLM)
+- [Kokoro TTS](https://github.com/mlalma/kokoro-ios) - On-device neural voice (Kokoro-82M via MLX)
 - [Apple Foundation Models](https://developer.apple.com/documentation/foundationmodels) - On-device Apple Intelligence
 - [Google Gemini](https://ai.google.dev) - Live audio/video AI
 - [OpenClaw](https://github.com/openclaw/openclaw) - AI assistant framework
 - [OpenAI](https://platform.openai.com) - GPT-4o text + vision
-- [DuckDuckGo](https://duckduckgo.com) - Free web search
+- [Tavily](https://tavily.com) - Live web search built for AI assistants
+- [DuckDuckGo](https://duckduckgo.com) - Keyless web-search fallback
 
 ---
 
