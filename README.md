@@ -44,23 +44,36 @@
 
 ## Features
 
-### Four AI Backends — Cloud or Fully On-Device
+### Five AI Backends — Cloud or Fully On-Device
 - **Local (Gemma 4)**: On-device Gemma 4 via Apple MLX — private, offline, **zero API cost**. Text tier for chat + agentic commands (vision handled by a cloud backend).
+- **Apple Intelligence**: Apple's on-device Foundation Model (iOS 26+). **No download, no memory pressure** (OS-managed), private and offline. Uses guided generation + Apple's native tool-calling.
 - **OpenClaw**: Wake word activation, 56+ tools, task execution via WebSocket
 - **Gemini Live**: Real-time voice + vision with native audio streaming
-- **OpenAI**: GPT-4o text + vision over the Chat Completions API — works with any **OpenAI-compatible** endpoint (OpenRouter, local servers, etc.)
+- **OpenAI**: GPT-4o text + vision over the Chat Completions API — works with any **OpenAI-compatible** endpoint (OpenRouter, Groq, local servers, etc.)
+
+### Agentic Web Search — Answers When It Doesn't Know
+- The on-device models **search the web whenever they're unsure or don't know** — not just for "news" — and never answer "I don't know" without trying first.
+- **Free, no API key** (DuckDuckGo). Gemma summarizes the results; Apple calls a native `web_search` tool and answers grounded.
+
+### Conversation Memory
+- Multi-turn context on the on-device and OpenAI backends: *"What's the capital of France?"* → *"What's **its** population?"* just works.
+- Bounded per session so local memory stays safe; Apple keeps context via a reused native session.
 
 ### On-Device Face Recognition (Apple Vision)
 - Teach it faces hands-free: *"Ok Vision, remember this person as Sara"*
 - Recognize them later: *"Ok Vision, who is this?"*
 - Runs **entirely on-device** (Apple Vision `computeDistance`) — no cloud, no photos leave your phone
-- Intent is parsed by the on-device model (agentic) — **any phrasing works**, no rigid command syntax
+- Intent is parsed by the on-device model (agentic) — **any phrasing works**, and it only triggers for a person actually in view
 
 ### Smart Voice Control
 - Reliable wake word activation ("Ok Vision") for privacy — primed recognition + self-restart so it keeps listening (survives idle, replies, and glasses off/on)
 - Barge-in support - interrupt AI anytime by saying "Ok Vision"
 - Conversation mode - follow-up questions without wake word
 - "Ok Vision stop" - stop AI mid-speech
+- Audio routes correctly whether you're using the glasses or the phone alone (loud speaker, not the earpiece)
+
+### On-Device Model Management
+- Download the Local Gemma model on demand, and **delete it to reclaim storage** (~11 GB) anytime from Settings — re-download whenever you want.
 
 ### Glasses Integration
 - Photo capture on voice command ("take a photo")
@@ -96,7 +109,7 @@
 |--------|-------------|
 | **Voice Interface** | Main conversation screen with wake word prompt, waveform visualizer, and quick actions (camera, settings) |
 | **Settings** | Configure AI backend, glasses, voice control, and advanced options |
-| **AI Backend** | Choose Local Gemma (on-device), OpenClaw (tools), Gemini Live (low latency), or OpenAI |
+| **AI Backend** | Choose Local Gemma, Apple Intelligence (on-device), OpenClaw (tools), Gemini Live (low latency), or OpenAI |
 | **Glasses** | Register glasses with Meta AI, view device status, control camera streaming |
 
 ---
@@ -111,6 +124,7 @@
 - Meta Developer account for glasses registration
 - An AI backend — one of:
   - **Local (Gemma 4)** — no account/key needed; runs on-device (needs a recent iPhone, e.g. 15 Pro/16/17)
+  - **Apple Intelligence** — no key or download; needs iOS 26+ on an Apple-Intelligence device (iPhone 15 Pro and newer)
   - [OpenClaw](https://github.com/openclaw/openclaw) instance
   - [Gemini API key](https://aistudio.google.com/app/apikey)
   - [OpenAI API key](https://platform.openai.com/api-keys) (or any OpenAI-compatible endpoint)
@@ -210,10 +224,12 @@ You: "Stop video"                        → Returns to OpenClaw mode
 | "Remember this person as Sara" | Enroll a face (on-device) |
 | "Who is this?" | Identify the person in view (on-device) |
 | "Forget Sara" / "Who do you know?" | Remove / list known faces |
+| "What's today's news?" / "Weather in Tokyo?" | Web search (on-device backends) |
+| "What's its population?" (as a follow-up) | Uses conversation memory |
 | "Start video streaming" | Switch to Gemini Live mode |
 | "Stop video" | Exit Gemini Live mode |
 
-> Face and local-mode commands are routed by the on-device model, so you don't need exact wording — natural phrasing works.
+> Commands are routed by the on-device model, so you don't need exact wording — natural phrasing works, and it searches the web on its own when it doesn't know.
 
 ---
 
@@ -222,11 +238,12 @@ You: "Stop video"                        → Returns to OpenClaw mode
 | Backend | Voice | Vision | Cost / Privacy | Best For |
 |---------|-------|--------|----------------|----------|
 | **Local (Gemma 4)** | Wake word + Apple STT | via a cloud backend | Free · **fully on-device** | Private chat, face commands, offline |
+| **Apple Intelligence** | Wake word + Apple STT | via a cloud backend | Free · **on-device, no download** | Private chat on iOS 26+ devices, lowest setup |
 | **OpenClaw** | Wake word + Apple STT | Photo on request | Self-hosted | Tasks, 56+ tools, control |
 | **Gemini Live** | Native VAD (always on) | Continuous 1fps video | Cloud API | Natural, low-latency conversation |
 | **OpenAI** | Wake word + Apple STT | Photo on request (GPT-4o) | Cloud API · OpenAI-compatible | Cloud text + vision, cross-checking |
 
-Face recognition ("remember this person as …" / "who is this?") runs **on-device** and works with **any** backend.
+Face recognition, web search, and conversation memory all run on the **on-device** backends (Gemma, Apple) — private, no photos or queries leave your phone unless you pick a cloud backend.
 
 ---
 
@@ -235,8 +252,9 @@ Face recognition ("remember this person as …" / "who is this?") runs **on-devi
 ### AI Section
 | Setting | Description |
 |---------|-------------|
-| **AI Backend** | Choose Local (Gemma 4), OpenClaw, Gemini Live, or OpenAI |
-| **Local (Gemma 4)** | Download / select the on-device model |
+| **AI Backend** | Choose Local (Gemma 4), Apple Intelligence, OpenClaw, Gemini Live, or OpenAI |
+| **Local (Gemma 4)** | Download / select the on-device model, or **delete it to reclaim storage** |
+| **Apple Intelligence** | On-device model status (no key or download needed; iOS 26+) |
 | **OpenClaw Gateway** | WebSocket URL (e.g., `wss://localhost:18789`) |
 | **OpenClaw Token** | Authentication token |
 | **Gemini API Key** | Google API key |
@@ -277,6 +295,9 @@ Face recognition ("remember this person as …" / "who is this?") runs **on-devi
 │  ├── GeminiLiveService   Native audio/video WebSocket           │
 │  ├── OpenAIService       Chat Completions (text + vision)       │
 │  ├── GemmaLocalService   On-device Gemma 4 via MLX + routing    │
+│  ├── AppleFoundationService  Apple Intelligence (iOS 26 model)  │
+│  ├── LocalAgent          Shared agentic routing + conversation  │
+│  ├── WebSearchService    Free web search (DuckDuckGo)           │
 │  ├── FaceRecognitionService  On-device faces (Apple Vision)     │
 │  ├── VoiceCommandService Wake word detection, Apple STT         │
 │  ├── TTSService          Text-to-speech                         │
@@ -402,9 +423,11 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - [Meta Wearables DAT SDK](https://github.com/facebook/meta-wearables-dat-ios) - Glasses integration
 - [Apple MLX](https://github.com/ml-explore/mlx-swift-lm) - On-device Gemma 4 inference
+- [Apple Foundation Models](https://developer.apple.com/documentation/foundationmodels) - On-device Apple Intelligence
 - [Google Gemini](https://ai.google.dev) - Live audio/video AI
 - [OpenClaw](https://github.com/openclaw/openclaw) - AI assistant framework
 - [OpenAI](https://platform.openai.com) - GPT-4o text + vision
+- [DuckDuckGo](https://duckduckgo.com) - Free web search
 
 ---
 
