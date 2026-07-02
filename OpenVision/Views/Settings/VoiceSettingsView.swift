@@ -70,20 +70,48 @@ struct VoiceSettingsView: View {
 
             // TTS Voice Section
             Section {
-                NavigationLink {
-                    VoiceSelectionView()
-                } label: {
-                    HStack {
-                        Text("TTS Voice")
-                        Spacer()
-                        Text(selectedVoiceName)
-                            .foregroundColor(.secondary)
+                Picker("Speech Engine", selection: $settingsManager.settings.ttsEngine) {
+                    ForEach(TTSEngineType.allCases) { engine in
+                        Text(engine.displayName).tag(engine)
+                    }
+                }
+
+                if settingsManager.settings.ttsEngine == .appleSystem {
+                    NavigationLink {
+                        VoiceSelectionView()
+                    } label: {
+                        HStack {
+                            Text("Apple Voice")
+                            Spacer()
+                            Text(selectedVoiceName).foregroundColor(.secondary)
+                        }
+                    }
+                } else {
+                    Picker("Kokoro Voice", selection: $settingsManager.settings.kokoroVoice) {
+                        ForEach(KokoroTTSService.voices, id: \.self) { voice in
+                            Text(voice).tag(voice)
+                        }
+                    }
+                    NavigationLink {
+                        KokoroSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Kokoro Model", systemImage: "waveform")
+                            Spacer()
+                            Text(KokoroTTSService.shared.isModelReady ? "Ready" : "Download")
+                                .font(.caption)
+                                .foregroundColor(KokoroTTSService.shared.isModelReady ? .green : .orange)
+                        }
                     }
                 }
             } header: {
                 Text("Output Voice")
             } footer: {
-                Text("Choose the voice used for AI responses in OpenClaw mode.")
+                if settingsManager.settings.ttsEngine == .kokoro {
+                    Text("Kokoro is a natural, on-device neural voice — private and offline. Download its model (~600 MB) under Kokoro Model, then it runs entirely on-device.")
+                } else {
+                    Text("Apple's built-in system voice. For higher quality, download a Premium/Enhanced voice in iOS Settings → Accessibility → Spoken Content.")
+                }
             }
 
             // Feedback Section

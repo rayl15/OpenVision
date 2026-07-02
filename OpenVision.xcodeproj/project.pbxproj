@@ -44,6 +44,7 @@
 		7C118644498027D47E828115 /* wake_word_ding.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 98C627C6F13B708A7A8D2CDA /* wake_word_ding.mp3 */; };
 		800BD44B75446351A267E190 /* OpenAISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D83F733F1799E2675A34CC4 /* OpenAISettingsView.swift */; };
 		81F38E617E61131E8C87620B /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = A7FF778329794C28B434EEAA /* MWDATCore */; };
+		8351C940EEB51503B73F3449 /* KokoroSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F363A639A7050AFBDFAF486 /* KokoroSettingsView.swift */; };
 		8BB3557D9BE4E9F2399BDBC1 /* VoiceAgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 601D21AA8114E457F40C6C4A /* VoiceAgentView.swift */; };
 		A7A3B0467B07F116AEF20BEE /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DA55F18F98C8B110680989C /* AudioSessionManager.swift */; };
 		AF2C901CA288086B7EBA6083 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7376B3EE1F53DF1BD56B1095 /* Constants.swift */; };
@@ -63,6 +64,7 @@
 		EF5319DFC76B8BD9A50EF195 /* OpenVisionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FFDFCB5AA5A664CC70E183 /* OpenVisionApp.swift */; };
 		F1D86E9A3AB2A994A205AB83 /* GeminiSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 773753CA73EBA9F8C78BD8E4 /* GeminiSettingsView.swift */; };
 		F7718545E4E6BB4A7773B564 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADC230E2AE44E5132DC5AB01 /* SettingsManager.swift */; };
+		FCA8B46A222A0C469FF7873B /* KokoroTTSService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE848862D72446F7BBDD3D89 /* KokoroTTSService.swift */; };
 		FCFECBF332943E64812DC931 /* AIBackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A8327E5265287A0C89DE3D /* AIBackendSettingsView.swift */; };
 		FFFDF7E8B3F8E6A194E1571E /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 8F8A2A9D74F79603F186C7B4 /* Tokenizers */; };
 /* End PBXBuildFile section */
@@ -81,6 +83,7 @@
 		41F6DCD4CB868C1A5711F96D /* AnimatedBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedBackground.swift; sourceTree = "<group>"; };
 		44D24962AB43639AF3B59662 /* WebSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSearchService.swift; sourceTree = "<group>"; };
 		484468B5604EFF4051074762 /* MemoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoriesView.swift; sourceTree = "<group>"; };
+		4F363A639A7050AFBDFAF486 /* KokoroSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KokoroSettingsView.swift; sourceTree = "<group>"; };
 		516A0726470BFA8BD9B55F3F /* AdditionalInstructionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdditionalInstructionsView.swift; sourceTree = "<group>"; };
 		529F4C0838CFE7F8F55E28E4 /* AudioPlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlaybackService.swift; sourceTree = "<group>"; };
 		57A8327E5265287A0C89DE3D /* AIBackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendSettingsView.swift; sourceTree = "<group>"; };
@@ -104,6 +107,7 @@
 		ADCFF581A7AE50FBF35EA257 /* GeminiLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiLiveService.swift; sourceTree = "<group>"; };
 		B2B78D6C28BEFF1F8426997C /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
 		B2FD4A9B156D92B468B28864 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		BE848862D72446F7BBDD3D89 /* KokoroTTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KokoroTTSService.swift; sourceTree = "<group>"; };
 		C1BF0DC63344C51A046E37E0 /* OVExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OVExceptionCatcher.h; sourceTree = "<group>"; };
 		C1BFC8380B5BDA0778E04EAB /* GemmaSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaSettingsView.swift; sourceTree = "<group>"; };
 		C27052ECD2FFC79652B5CDB3 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -155,6 +159,7 @@
 				773753CA73EBA9F8C78BD8E4 /* GeminiSettingsView.swift */,
 				C1BFC8380B5BDA0778E04EAB /* GemmaSettingsView.swift */,
 				ED25EC5E800C216965A50F8A /* GlassesSettingsView.swift */,
+				4F363A639A7050AFBDFAF486 /* KokoroSettingsView.swift */,
 				484468B5604EFF4051074762 /* MemoriesView.swift */,
 				5D83F733F1799E2675A34CC4 /* OpenAISettingsView.swift */,
 				EAFCA981F220C3F978645D70 /* OpenClawSettingsView.swift */,
@@ -380,6 +385,7 @@
 		C6EBF5734AD805262779ECA5 /* TTS */ = {
 			isa = PBXGroup;
 			children = (
+				BE848862D72446F7BBDD3D89 /* KokoroTTSService.swift */,
 				D416290774C17FDC0DDFBC68 /* TTSService.swift */,
 			);
 			path = TTS;
@@ -580,6 +586,8 @@
 				BE99A2B1118292BBC7E1FC59 /* GlassesManager.swift in Sources */,
 				E93E2788532682366707A34D /* GlassesSettingsView.swift in Sources */,
 				29F56C03229677BC1F157CEC /* HapticFeedback.swift in Sources */,
+				8351C940EEB51503B73F3449 /* KokoroSettingsView.swift in Sources */,
+				FCA8B46A222A0C469FF7873B /* KokoroTTSService.swift in Sources */,
 				53C17BBA774E7D3D4E295584 /* LocalAgent.swift in Sources */,
 				CDA89E5AAAF25713C6321971 /* MainTabView.swift in Sources */,
 				341497F0AA31AE9C6E137386 /* MemoriesView.swift in Sources */,

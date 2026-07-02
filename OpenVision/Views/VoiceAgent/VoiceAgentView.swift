@@ -16,6 +16,7 @@ struct VoiceAgentView: View {
     @StateObject private var geminiVision = GeminiVisionService.shared
     @StateObject private var geminiLive = GeminiLiveService.shared
     @StateObject private var ttsService = TTSService.shared
+    @StateObject private var kokoroTTS = KokoroTTSService.shared
     @StateObject private var soundService = SoundService.shared
     @StateObject private var audioCapture = AudioCaptureService()
     @StateObject private var audioPlayback = AudioPlaybackService()
@@ -147,6 +148,24 @@ struct VoiceAgentView: View {
                 // Resume barge-in detection
                 voiceCommandService.isBargeInPaused = false
 
+                if isSessionActive {
+                    agentState = .listening
+                    voiceCommandService.enterConversationMode()
+                } else {
+                    agentState = .idle
+                }
+            }
+        }
+        // Kokoro drives the same speaking-state flow as Apple TTS: keep the recognizer running
+        // (in .processing) with barge-in paused so it stays in the conversation loop, then enter
+        // conversation mode when playback finishes. (Don't stopListening — that trips the .idle
+        // session-teardown observer and ends the conversation after every reply.)
+        .onChange(of: kokoroTTS.isSpeaking) { speaking in
+            if speaking {
+                agentState = .speaking
+                voiceCommandService.isBargeInPaused = true
+            } else {
+                voiceCommandService.isBargeInPaused = false
                 if isSessionActive {
                     agentState = .listening
                     voiceCommandService.enterConversationMode()
@@ -616,6 +635,7 @@ struct VoiceAgentView: View {
 
         // Stop any ongoing TTS
         ttsService.stop()
+        KokoroTTSService.shared.stop()
 
         // Set session inactive FIRST to prevent callbacks from processing
         isSessionActive = false
@@ -698,6 +718,7 @@ struct VoiceAgentView: View {
             if self.ttsService.isSpeaking {
                 print("[VoiceAgentView] Stopping TTS due to wake word interrupt")
                 self.ttsService.stop()
+                KokoroTTSService.shared.stop()
                 self.audioPlayback.stop()
                 self.agentState = .listening
             }
@@ -736,6 +757,7 @@ struct VoiceAgentView: View {
 
             // Stop TTS immediately
             self.ttsService.stop()
+            KokoroTTSService.shared.stop()
 
             // Stop current AI response
             Task {
@@ -917,6 +939,7 @@ struct VoiceAgentView: View {
             print("[VoiceAgentView] Stop command detected - stopping TTS")
             // Stop TTS
             ttsService.stop()
+            KokoroTTSService.shared.stop()
             // Stop audio playback (for Gemini Live)
             audioPlayback.stop()
             // Interrupt AI if processing
@@ -1072,6 +1095,7 @@ struct VoiceAgentView: View {
 
         // Stop TTS if speaking
         ttsService.stop()
+        KokoroTTSService.shared.stop()
 
         // Start glasses streaming
         if !glassesManager.isStreaming {
@@ -1531,7 +1555,12 @@ struct VoiceAgentView: View {
     /// Speak AI response via TTS
     private func speakResponse(_ text: String) {
         guard !text.isEmpty else { return }
-        ttsService.speak(text)
+        // Kokoro (on-device neural) when selected + ready; otherwise the Apple system voice.
+        if settingsManager.settings.ttsEngine == .kokoro && KokoroTTSService.shared.isModelReady {
+            Task { await KokoroTTSService.shared.speak(text, voice: settingsManager.settings.kokoroVoice) }
+        } else {
+            ttsService.speak(text)
+        }
     }
 
     // MARK: - Tool Handlers

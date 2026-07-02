@@ -47,6 +47,19 @@ enum AIBackendType: String, Codable, CaseIterable {
     }
 }
 
+/// Which text-to-speech engine to use.
+enum TTSEngineType: String, Codable, CaseIterable, Identifiable {
+    case appleSystem = "apple"
+    case kokoro = "kokoro"
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .appleSystem: return "Apple (system voice)"
+        case .kokoro: return "Kokoro (natural, on-device)"
+        }
+    }
+}
+
 /// App settings persisted to Documents/settings.json
 struct AppSettings: Codable, Equatable {
     // MARK: - AI Backend Selection
@@ -103,8 +116,15 @@ struct AppSettings: Codable, Equatable {
     /// Conversation timeout in seconds (auto-end after silence)
     var conversationTimeout: TimeInterval = 30
 
-    /// Selected TTS voice identifier (nil = system default)
+    /// Selected TTS voice identifier for the Apple system voice (nil = system default)
     var selectedVoiceIdentifier: String? = nil
+
+    /// Which TTS engine to speak with. Apple (system voice) is the default and always available;
+    /// Kokoro is on-device neural TTS (natural, offline) once its model is downloaded.
+    var ttsEngine: TTSEngineType = .appleSystem
+
+    /// Selected Kokoro voice (e.g. "af_heart"). First letter: a = American, b = British.
+    var kokoroVoice: String = "af_heart"
 
     // MARK: - AI Customization
 
