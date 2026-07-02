@@ -92,6 +92,12 @@ struct AppSettings: Codable, Equatable {
     /// server, Azure-style gateways, etc.). No trailing slash.
     var openAIBaseURL: String = "https://api.openai.com/v1"
 
+    // MARK: - Web Search
+
+    /// Tavily API key (free tier). When set, web search uses Tavily (real live content, built for
+    /// LLMs) as the primary source, falling back to keyless DuckDuckGo otherwise.
+    var tavilyAPIKey: String = ""
+
     // MARK: - Local Gemma Configuration
 
     /// HuggingFace repo id of the on-device Gemma 4 model to load.

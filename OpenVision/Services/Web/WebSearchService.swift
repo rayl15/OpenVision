@@ -17,12 +17,64 @@ enum WebSearchService {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
 
-        // 1) Instant Answer — clean, structured; great for definitions / entities / math.
+        // 1) Tavily (if configured) — real live content, built for LLMs. Best for news/prices/scores.
+        if let tavily = await tavilySearch(trimmed), !tavily.isEmpty {
+            return tavily
+        }
+        // 2) DuckDuckGo Instant Answer — clean facts / definitions / math (no key).
         if let instant = await instantAnswer(trimmed), !instant.isEmpty {
             return instant
         }
-        // 2) Real search results — snippets from the web (covers news / current info).
+        // 3) DuckDuckGo HTML result snippets (no key; weak for live data).
         return await htmlResults(trimmed)
+    }
+
+    // MARK: - Tavily (primary when a key is set)
+
+    private static func tavilySearch(_ query: String) async -> String? {
+        let key = await MainActor.run { SettingsManager.shared.settings.tavilyAPIKey.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard !key.isEmpty, let url = URL(string: "https://api.tavily.com/search") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 12
+        let body: [String: Any] = [
+            "api_key": key,
+            "query": query,
+            "search_depth": "basic",
+            "max_results": 5,
+            "include_answer": true
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                NSLog("[OV] Tavily unavailable (HTTP %d)", (response as? HTTPURLResponse)?.statusCode ?? 0)
+                return nil
+            }
+            var parts: [String] = []
+            // Tavily's synthesized answer is the cleanest thing to hand the model.
+            if let answer = json["answer"] as? String, !answer.isEmpty { parts.append(answer) }
+            // Plus a few supporting result snippets.
+            if let results = json["results"] as? [[String: Any]] {
+                for r in results.prefix(4) {
+                    guard let content = (r["content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !content.isEmpty else { continue }
+                    let title = (r["title"] as? String) ?? ""
+                    parts.append(title.isEmpty ? content : "\(title): \(content)")
+                }
+            }
+            let combined = parts.joined(separator: "\n")
+            if !combined.isEmpty {
+                NSLog("[OV] Tavily hit: %d chars (%d results) for \"%@\"", combined.count, (json["results"] as? [[String: Any]])?.count ?? 0, query)
+            }
+            return combined.isEmpty ? nil : combined
+        } catch {
+            NSLog("[OV] Tavily error: %@", "\(error)")
+            return nil
+        }
     }
 
     // MARK: - Stage 1: Instant Answer API

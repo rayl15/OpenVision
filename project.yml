@@ -11,8 +11,8 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "2.3.0"
+    CURRENT_PROJECT_VERSION: "3"
     SWIFT_VERSION: "5.9"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     CODE_SIGN_STYLE: Automatic
@@ -64,7 +64,8 @@ targets:
       # On-device Gemma 4 (Local backend). MLX/MLXNN resolve transitively via these products.
       - package: mlx-swift-lm
         products:
-          - MLXVLM           # native Gemma 4 VLM (text + vision)
+          - MLXLLM           # text LLMs (Qwen 2.5, Gemma 2) via LLMModelFactory
+          - MLXVLM           # vision models (Gemma 4, SmolVLM2) via VLMModelFactory
           - MLXLMCommon
           - MLXHuggingFace   # #hubDownloader() / #huggingFaceTokenizerLoader()
       # The macros above expand to HuggingFace.HubClient + Tokenizers.AutoTokenizer; mlx-swift-lm

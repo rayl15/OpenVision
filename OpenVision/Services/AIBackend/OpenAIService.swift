@@ -64,40 +64,81 @@ final class OpenAIService: ObservableObject {
         }
         messages.append(["role": "user", "content": userContent])
 
-        let body: [String: Any] = [
-            "model": settings.openAIModel,
-            "messages": messages,
-            "max_tokens": 300
+        // Agentic web-search tool: the model calls it for current info, we run it, feed the result
+        // back, and it can refine or answer — an iterative loop (OpenGlasses' cloud pattern).
+        let webSearchTool: [String: Any] = [
+            "type": "function",
+            "function": [
+                "name": "web_search",
+                "description": "Search the web for current, real-time information — news, weather, prices, sports scores, recent events, or anything you're not certain of. Use it whenever the user asks about something current.",
+                "parameters": [
+                    "type": "object",
+                    "properties": ["query": ["type": "string", "description": "The search query"]],
+                    "required": ["query"]
+                ]
+            ]
         ]
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(settings.openAIAPIKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        request.timeoutInterval = 60
+        let maxIterations = 4
+        for _ in 0..<maxIterations {
+            let body: [String: Any] = [
+                "model": settings.openAIModel,
+                "messages": messages,
+                "tools": [webSearchTool],
+                "max_tokens": 400
+            ]
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(settings.openAIAPIKey)", forHTTPHeaderField: "Authorization")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            request.timeoutInterval = 60
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw OpenAIError.noResponse }
+            guard (200...299).contains(http.statusCode) else {
+                let detail = Self.errorMessage(from: data) ?? "HTTP \(http.statusCode)"
+                NSLog("[OpenAI] request failed: %@", detail)
+                throw OpenAIError.api(detail)
+            }
+            guard let message = Self.firstMessage(from: data) else { throw OpenAIError.emptyReply }
 
-        guard let http = response as? HTTPURLResponse else { throw OpenAIError.noResponse }
-        guard (200...299).contains(http.statusCode) else {
-            let detail = Self.errorMessage(from: data) ?? "HTTP \(http.statusCode)"
-            NSLog("[OpenAI] request failed: %@", detail)
-            throw OpenAIError.api(detail)
+            // Tool calls → execute web_search, feed results back, loop.
+            if let toolCalls = message["tool_calls"] as? [[String: Any]], !toolCalls.isEmpty {
+                messages.append(message)   // the assistant turn carrying tool_calls
+                for call in toolCalls {
+                    let id = call["id"] as? String ?? ""
+                    let fn = call["function"] as? [String: Any]
+                    let argsStr = fn?["arguments"] as? String ?? "{}"
+                    let args = (try? JSONSerialization.jsonObject(with: Data(argsStr.utf8))) as? [String: Any]
+                    let query = (args?["query"] as? String) ?? ""
+                    NSLog("[OpenAI] web_search: \"%@\"", query)
+                    let result = await WebSearchService.search(query)
+                    messages.append([
+                        "role": "tool",
+                        "tool_call_id": id,
+                        "content": result.isEmpty ? "No results found for \"\(query)\"." : result
+                    ])
+                }
+                continue
+            }
+
+            // No tool call → final spoken answer.
+            guard let reply = (message["content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !reply.isEmpty else {
+                throw OpenAIError.emptyReply
+            }
+            ConversationContext.shared.record(user: text, assistant: reply)
+            onAgentMessage?(reply)
+            return
         }
-
-        guard let reply = Self.firstMessageContent(from: data), !reply.isEmpty else {
-            throw OpenAIError.emptyReply
-        }
-        ConversationContext.shared.record(user: text, assistant: reply)
-        onAgentMessage?(reply)
+        throw OpenAIError.api("search loop didn't converge")
     }
 
     // MARK: - Prompt
 
     private func systemPrompt() -> String {
         // Keep replies short — they're spoken aloud. Append the user's custom instructions.
-        var parts = ["You are OpenVision, a helpful voice assistant for smart glasses. Answer conversationally and briefly (1-3 short sentences) since your reply is spoken aloud."]
+        var parts = ["You are OpenVision, a helpful voice assistant for smart glasses. Answer conversationally and briefly (1-3 short sentences) since your reply is spoken aloud. If the user asks about current or real-time information, or anything you're not certain of, call the web_search tool and answer from its results — never say you can't access real-time data."]
         let custom = settings.userPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !custom.isEmpty { parts.append(custom) }
         return parts.joined(separator: "\n\n")
@@ -105,14 +146,14 @@ final class OpenAIService: ObservableObject {
 
     // MARK: - Response parsing
 
-    private static func firstMessageContent(from data: Data) -> String? {
+    /// The full assistant message dict (content and/or tool_calls) from a Chat Completions response.
+    private static func firstMessage(from data: Data) -> [String: Any]? {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let choices = obj["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any],
-              let content = message["content"] as? String else {
+              let message = choices.first?["message"] as? [String: Any] else {
             return nil
         }
-        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return message
     }
 
     private static func errorMessage(from data: Data) -> String? {

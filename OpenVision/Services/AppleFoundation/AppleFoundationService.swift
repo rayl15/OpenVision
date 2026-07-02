@@ -190,6 +190,14 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
         }
     }
 
+    func reformulateSearchQuery(question: String, triedQuery: String) async -> String? {
+        // Apple's routeCommand searches via its native tool loop, so this is rarely hit — but keep
+        // it for protocol conformance and any direct .webSearch routing.
+        let out = await generate(system: LocalAgent.reformulateSystemPrompt,
+                                 user: "User's question: \(question)\nQuery that found nothing: \(triedQuery)")
+        return LocalAgent.cleanReformulatedQuery(out, triedQuery: triedQuery)
+    }
+
     // MARK: - Direct chat (fallback path)
 
     func sendMessage(_ text: String) async {

@@ -1311,7 +1311,12 @@ struct VoiceAgentView: View {
             await handleFaceIntent(intent)
         case .webSearch(let query):
             NSLog("[OV] web search: \"%@\"", query)
-            let result = await WebSearchService.search(query)
+            var result = await WebSearchService.search(query)
+            // Agentic retry: if the first query found nothing, let the model reformulate once.
+            if result.isEmpty, let better = await llm.reformulateSearchQuery(question: command, triedQuery: query) {
+                NSLog("[OV] web search retry: \"%@\"", better)
+                result = await WebSearchService.search(better)
+            }
             let answer = await llm.answerWithSearchResult(question: command, result: result)
             speakResponse(answer)
             ConversationContext.shared.record(user: command, assistant: answer)

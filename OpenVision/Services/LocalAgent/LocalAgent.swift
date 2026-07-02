@@ -104,4 +104,23 @@ enum LocalAgent {
 protocol LocalTextLLM: AnyObject {
     func routeCommand(_ command: String) async -> LocalAgent.RouteResult
     func answerWithSearchResult(question: String, result: String) async -> String
+    /// Given a search query that returned nothing, propose ONE better query (or nil to give up).
+    /// Enables an agentic retry so a weak first query doesn't sink the whole search.
+    func reformulateSearchQuery(question: String, triedQuery: String) async -> String?
+}
+
+extension LocalAgent {
+    /// System prompt for reformulating a failed web-search query. Shared by the backends.
+    static let reformulateSystemPrompt = """
+    You help a voice assistant search the web. A previous search returned no results. Suggest ONE different, simpler, more general web-search query that is more likely to find results for the user's question. Reply with ONLY the new query text — no quotes, no punctuation, no explanation.
+    """
+
+    /// Clean a model's reformulated-query output into a usable query (nil if empty or unchanged).
+    static func cleanReformulatedQuery(_ raw: String?, triedQuery: String) -> String? {
+        guard let raw else { return nil }
+        let firstLine = raw.components(separatedBy: .newlines).first ?? raw
+        let clean = firstLine.trimmingCharacters(in: CharacterSet(charactersIn: " \t\n\"'.?!"))
+        guard !clean.isEmpty, clean.count <= 120, clean.lowercased() != triedQuery.lowercased() else { return nil }
+        return clean
+    }
 }

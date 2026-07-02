@@ -16,7 +16,8 @@
 import Foundation
 import UIKit            // UIApplication.applicationState — GPU inference is forbidden in background
 import MLX
-import MLXVLM            // Gemma 4 model (loaded via VLMModelFactory; used text-only here)
+import MLXLLM            // text LLMs (Qwen 2.5, Gemma 2) via LLMModelFactory
+import MLXVLM            // vision models (Gemma 4, SmolVLM2) via VLMModelFactory
 import MLXLMCommon
 import MLXHuggingFace   // #hubDownloader() / #huggingFaceTokenizerLoader() macros
 import HuggingFace      // the macros expand to HuggingFace.HubClient …
@@ -24,38 +25,64 @@ import Tokenizers       // … and Tokenizers.AutoTokenizer
 
 // MARK: - Selectable on-device models
 
-/// The Gemma 4 edge models we expose in the model manager.
-/// Repo ids match the validated `mlx-community` snapshots (note E2B's capitalised id).
+/// The on-device MLX models we expose in the model manager. A mix of lighter text LLMs and the
+/// heavier vision-capable Gemma 4 — so you can trade memory/speed for capability.
+/// Repo ids match validated `mlx-community` snapshots.
 enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
-    case e2b
-    case e4b
+    case qwen05B         // Qwen 2.5 0.5B — tiny/fastest
+    case gemma2_2B       // Gemma 2 2B — balanced text
+    case qwen3B          // Qwen 2.5 3B — strong text, still light
+    case e2b             // Gemma 4 E2B — vision-capable, heaviest
+    case smolVLM2_2B     // SmolVLM2 2.2B — lighter vision model
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
+        case .qwen05B: return "Qwen 2.5 0.5B"
+        case .gemma2_2B: return "Gemma 2 2B"
+        case .qwen3B: return "Qwen 2.5 3B"
         case .e2b: return "Gemma 4 E2B"
-        case .e4b: return "Gemma 4 E4B"
+        case .smolVLM2_2B: return "SmolVLM2 2.2B"
         }
     }
 
-    /// HuggingFace repo id of the 4-bit MLX snapshot.
+    /// HuggingFace repo id of the MLX snapshot.
     var modelId: String {
         switch self {
+        case .qwen05B: return "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+        case .gemma2_2B: return "mlx-community/gemma-2-2b-it-4bit"
+        case .qwen3B: return "mlx-community/Qwen2.5-3B-Instruct-4bit"
         case .e2b: return "mlx-community/gemma-4-E2B-it-4bit"
-        case .e4b: return "mlx-community/gemma-4-e4b-it-4bit"
+        case .smolVLM2_2B: return "mlx-community/SmolVLM2-2.2B-Instruct-mlx"
         }
     }
 
     var detail: String {
         switch self {
-        case .e2b: return "2B params • ~3.6 GB • fastest"
-        case .e4b: return "4B params • ~5.2 GB • smarter"
+        case .qwen05B: return "0.5B • ~0.4 GB • tiny, lowest memory, fastest"
+        case .gemma2_2B: return "2B • ~1.5 GB • balanced text"
+        case .qwen3B: return "3B • ~1.9 GB • strongest text, still light"
+        case .e2b: return "2B • ~3.6 GB • vision-capable, heaviest"
+        case .smolVLM2_2B: return "2.2B • ~2.6 GB • lighter vision model"
+        }
+    }
+
+    /// Vision models load via VLMModelFactory; text models via LLMModelFactory.
+    var isVLM: Bool {
+        switch self {
+        case .e2b, .smolVLM2_2B: return true
+        case .qwen05B, .gemma2_2B, .qwen3B: return false
         }
     }
 
     static func from(modelId: String) -> GemmaLocalModel {
         allCases.first { $0.modelId == modelId } ?? .e2b
+    }
+
+    /// True if the given model id (which may not be in our list) is a vision model.
+    static func isVLM(modelId: String) -> Bool {
+        allCases.first { $0.modelId == modelId }?.isVLM ?? false
     }
 }
 
@@ -101,20 +128,28 @@ final class GemmaLocalService: ObservableObject {
     /// Download a model snapshot to disk (idempotent — skipped if already cached).
     func download(_ model: GemmaLocalModel, onProgress: @escaping (Double) -> Void) async throws {
         downloadProgress = 0
-        let configuration = ModelConfiguration(id: model.modelId)
         // loadContainer fetches the snapshot if missing; reuse it as the download path.
-        _ = try await VLMModelFactory.shared.loadContainer(
-            from: #hubDownloader(),
-            using: #huggingFaceTokenizerLoader(),
-            configuration: configuration,
-            progressHandler: { [weak self] progress in
-                Task { @MainActor in
-                    self?.downloadProgress = progress.fractionCompleted
-                    onProgress(progress.fractionCompleted)
-                }
-            }
-        )
+        _ = try await loadModelContainer(modelId: model.modelId) { [weak self] p in
+            self?.downloadProgress = p
+            onProgress(p)
+        }
         downloadProgress = 1
+    }
+
+    /// Load (downloading if needed) a model container, using the vision or text factory based on
+    /// the model type. Both produce an MLXLMCommon `ModelContainer` that generates identically.
+    private func loadModelContainer(modelId: String, progress: @escaping (Double) -> Void) async throws -> ModelContainer {
+        let configuration = ModelConfiguration(id: modelId)
+        let handler: (Progress) -> Void = { p in Task { @MainActor in progress(p.fractionCompleted) } }
+        if GemmaLocalModel.isVLM(modelId: modelId) {
+            return try await VLMModelFactory.shared.loadContainer(
+                from: #hubDownloader(), using: #huggingFaceTokenizerLoader(),
+                configuration: configuration, progressHandler: handler)
+        } else {
+            return try await LLMModelFactory.shared.loadContainer(
+                from: #hubDownloader(), using: #huggingFaceTokenizerLoader(),
+                configuration: configuration, progressHandler: handler)
+        }
     }
 
     // MARK: - Connect / disconnect (load / unload)
@@ -138,15 +173,9 @@ final class GemmaLocalService: ObservableObject {
 
         do {
             print("[GemmaLocal] loading container…")
-            let configuration = ModelConfiguration(id: modelId)
-            let container = try await VLMModelFactory.shared.loadContainer(
-                from: #hubDownloader(),
-                using: #huggingFaceTokenizerLoader(),
-                configuration: configuration,
-                progressHandler: { [weak self] progress in
-                    Task { @MainActor in self?.downloadProgress = progress.fractionCompleted }
-                }
-            )
+            let container = try await loadModelContainer(modelId: modelId) { [weak self] p in
+                self?.downloadProgress = p
+            }
             modelContainer = container
             loadedModelId = modelId
             isModelLoaded = true
@@ -406,6 +435,14 @@ final class GemmaLocalService: ObservableObject {
             messages.append(.init(role: .user, content: user))
             return try? await self.rawGenerate(messages: messages, maxTokens: 200, temperature: 0.3)
         }
+    }
+
+    func reformulateSearchQuery(question: String, triedQuery: String) async -> String? {
+        let out = try? await rawGenerate(messages: [
+            .init(role: .system, content: LocalAgent.reformulateSystemPrompt),
+            .init(role: .user, content: "User's question: \(question)\nQuery that found nothing: \(triedQuery)")
+        ], maxTokens: 40, temperature: 0.5)
+        return LocalAgent.cleanReformulatedQuery(out, triedQuery: triedQuery)
     }
 
     /// Phrase a concise spoken answer to `question` using a web-search `result`.

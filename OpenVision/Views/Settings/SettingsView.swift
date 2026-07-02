@@ -31,6 +31,18 @@ struct SettingsView: View {
                         }
                     }
 
+                    NavigationLink {
+                        WebSearchSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Web Search", systemImage: "magnifyingglass")
+                            Spacer()
+                            Text(settingsManager.settings.tavilyAPIKey.isEmpty ? "DuckDuckGo" : "Tavily")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
                     // Only show for Gemini Live (OpenClaw has its own system prompt & memories)
                     if settingsManager.settings.aiBackend == .geminiLive {
                         NavigationLink {
