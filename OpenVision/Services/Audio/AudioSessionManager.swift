@@ -116,29 +116,39 @@ final class AudioSessionManager {
 
     // MARK: - Bluetooth HFP Routing
 
-    /// Configure audio session for Bluetooth HFP (glasses mic + speaker)
-    func configureForGlasses() throws {
-        // Use HFP mode for bidirectional Bluetooth audio
+    /// Configure the audio session for the glasses' Bluetooth HFP mic + speaker.
+    /// Returns `true` only if an HFP input was actually found and selected (i.e. the glasses are
+    /// connected as an audio device); `false` means no glasses audio is present and the caller
+    /// should fall back to the phone. NOTE: we must set the category with `.allowBluetoothHFP` and
+    /// activate the session *first* — only then does iOS expose the HFP input in `availableInputs`
+    /// (this is what previously made the glasses mic undetectable: the phone route disallows HFP).
+    @discardableResult
+    func configureForGlasses() throws -> Bool {
+        // Match OpenGlasses: `.default` mode + `.mixWithOthers` so the recognizer's session COEXISTS
+        // with the glasses camera's Bluetooth stream instead of taking exclusive HFP control. With
+        // `.voiceChat` + `.duckOthers` the camera stream killed the HFP mic (and iOS wouldn't revive
+        // it); `.mixWithOthers` keeps the glasses mic alive through photo capture.
         try audioSession.setCategory(
             .playAndRecord,
-            mode: .voiceChat,
-            options: [
-                .allowBluetoothHFP,  // Required for HFP
-                .duckOthers
-            ]
+            mode: .default,
+            options: [.mixWithOthers, .allowBluetoothHFP, .allowBluetoothA2DP, .defaultToSpeaker]
         )
-        try audioSession.setActive(true)
+        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
 
-        // Find and set Bluetooth HFP as preferred input
-        if let hfpInput = findBluetoothHFPInput() {
-            try audioSession.setPreferredInput(hfpInput)
-            print("[AudioSession] Set preferred input to Bluetooth HFP: \(hfpInput.portName)")
-        } else {
-            print("[AudioSession] Warning: No Bluetooth HFP input found")
+        // Now that HFP is allowed + the session is active, the glasses mic should be listed.
+        guard let hfpInput = findBluetoothHFPInput() else {
+            print("[AudioSession] No Bluetooth HFP input — glasses not connected as an audio device. Inputs: \(availableInputsDescription)")
+            return false
         }
-
+        try audioSession.setPreferredInput(hfpInput)
         currentMode = .voiceChat
-        print("[AudioSession] Configured for glasses (Bluetooth HFP)")
+        print("[AudioSession] ✓ Configured for glasses (Bluetooth HFP): \(hfpInput.portName) — route: \(currentRouteDescription)")
+        return true
+    }
+
+    /// Names + types of every input iOS currently reports — for diagnosing mic routing.
+    var availableInputsDescription: String {
+        (audioSession.availableInputs ?? []).map { "\($0.portName)[\($0.portType.rawValue)]" }.joined(separator: ", ")
     }
 
     /// Configure audio for phone-only use (no glasses): record from the built-in mic and play

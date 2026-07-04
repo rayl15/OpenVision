@@ -132,6 +132,11 @@ struct AppSettings: Codable, Equatable {
     /// Selected Kokoro voice (e.g. "af_heart"). First letter: a = American, b = British.
     var kokoroVoice: String = "af_heart"
 
+    /// Prefer the glasses' Bluetooth microphone for voice input when they're the connected audio
+    /// device — true hands-free. Falls back to the phone mic automatically when the glasses aren't
+    /// the audio route. Turn off to always use the phone. (Glasses mic uses more battery.)
+    var preferGlassesMic: Bool = true
+
     // MARK: - AI Customization
 
     /// Custom instructions appended to AI system prompt

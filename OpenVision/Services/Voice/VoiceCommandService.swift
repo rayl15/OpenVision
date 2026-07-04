@@ -88,6 +88,14 @@ final class VoiceCommandService: ObservableObject {
 
     private var audioEngine: AVAudioEngine?
 
+    /// Throttle for the wake-word auto-restart. On some audio routes (notably the glasses'
+    /// Bluetooth HFP mic) the recognizer finalizes immediately, and restarting with no delay
+    /// spins a tight infinite loop that freezes the app. We coalesce restarts to at most one
+    /// every `minRestartInterval`.
+    private var lastRecognizerRestart = Date.distantPast
+    private var wakeWordRestartScheduled = false
+    private let minRestartInterval: TimeInterval = 0.6
+
     // MARK: - Timers
 
     private var silenceTimer: Timer?
@@ -221,8 +229,24 @@ final class VoiceCommandService: ObservableObject {
     private func restartIfRecognizerEnded(result: SFSpeechRecognitionResult?, error: Error?) {
         let ended = (error != nil) || (result?.isFinal ?? false)
         guard ended, isListening, isWakeWordEnabled, state == .idle else { return }
-        print("[VoiceCommand] Recognizer ended while idle — restarting wake-word listener")
-        restartRecognition()
+        if let error { print("[VoiceCommand] Recognizer ended (\(error.localizedDescription)) — will relaunch wake-word listener") }
+        scheduleWakeWordRestart()
+    }
+
+    /// Relaunch the wake-word recognizer, but never more than once per `minRestartInterval`.
+    /// If the recognizer keeps ending immediately (e.g. a flaky Bluetooth HFP mic), this makes it
+    /// retry ~1×/second instead of spinning thousands of times a second and freezing the app.
+    private func scheduleWakeWordRestart() {
+        guard !wakeWordRestartScheduled else { return }   // coalesce a burst of "ended" callbacks
+        wakeWordRestartScheduled = true
+        let delay = max(0, minRestartInterval - Date().timeIntervalSince(lastRecognizerRestart))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            self.wakeWordRestartScheduled = false
+            guard self.isListening, self.state == .idle, self.isWakeWordEnabled else { return }
+            self.lastRecognizerRestart = Date()
+            self.restartRecognition()
+        }
     }
 
     /// Stop listening
@@ -287,6 +311,21 @@ final class VoiceCommandService: ObservableObject {
 
         // Reinstall tap
         guard let audioEngine = audioEngine else { return }
+
+        // The glasses camera's Bluetooth route change can silently STOP the running engine (the
+        // recognizer then looks alive but hears nothing). Revive the same engine instead of tearing
+        // it down — a rebuild would force a fresh HFP/SCO negotiation the glasses can't service
+        // right after streaming, leaving the mic deaf. This mirrors OpenGlasses' persistent engine.
+        if !audioEngine.isRunning {
+            audioEngine.prepare()
+            do {
+                try audioEngine.start()
+                print("[VoiceCommand] Engine had stopped (route change) — restarted in place")
+            } catch {
+                print("[VoiceCommand] Engine restart failed: \(error)")
+            }
+        }
+
         let inputNode = audioEngine.inputNode
         inputNode.removeTap(onBus: 0) // defensive: never install over an existing tap
         let recordingFormat = inputNode.outputFormat(forBus: 0)
@@ -378,6 +417,7 @@ final class VoiceCommandService: ObservableObject {
         }
 
         let transcription = result.bestTranscription.formattedString
+        print("[VoiceCommand] 🎤 heard(\(state)): \"\(transcription)\"")
 
         switch state {
         case .idle:

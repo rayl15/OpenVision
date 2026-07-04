@@ -41,6 +41,7 @@ struct VoiceAgentView: View {
     /// True when voice recognition is ready (audio engine running)
     @State private var isVoiceReady = false
 
+
     // MARK: - Agent State
 
     enum AgentState: Equatable {
@@ -150,7 +151,7 @@ struct VoiceAgentView: View {
 
                 if isSessionActive {
                     agentState = .listening
-                    voiceCommandService.enterConversationMode()
+                    resumeListeningAfterSpeaking()
                 } else {
                     agentState = .idle
                 }
@@ -168,7 +169,7 @@ struct VoiceAgentView: View {
                 voiceCommandService.isBargeInPaused = false
                 if isSessionActive {
                     agentState = .listening
-                    voiceCommandService.enterConversationMode()
+                    resumeListeningAfterSpeaking()
                 } else {
                     agentState = .idle
                 }
@@ -187,12 +188,14 @@ struct VoiceAgentView: View {
             print("[VoiceAgentView] VoiceCommandService state changed to: \(newState)")
             switch newState {
             case .idle:
-                // Conversation ended, return to idle — BUT ignore the transient .idle that fires
-                // while a session is starting up: configureAudioForGlasses() briefly stops the
-                // recognizer (→ .idle) mid-startup, which otherwise tore the session right back
-                // down and left commands "ignored" (stuck on thinking). agentState == .connecting
-                // means we're still starting, so don't treat it as a real conversation end.
-                if isSessionActive && agentState != .connecting {
+                // A real conversation end is the recognizer going idle *while we were listening*
+                // for the user (silence timeout). An .idle in any other state (.connecting startup,
+                // .thinking/.toolRunning command processing, .speaking a reply) is a transient from
+                // our own stop/restart — e.g. the camera capture restarts the recognizer mid-command
+                // — and must NOT tear the session down. (This is what left the wake word dead after a
+                // face/camera command: the restart flipped to .idle during .thinking and killed the
+                // session, so the post-reply audio rebuild never ran.)
+                if isSessionActive && agentState == .listening {
                     print("[VoiceAgentView] Voice service idle, stopping session")
                     isSessionActive = false
                     agentState = .idle
@@ -534,71 +537,38 @@ struct VoiceAgentView: View {
     /// Bring wake-word listening back after using the glasses camera. On DAT 0.4.0 the camera
     /// stream uses the Bluetooth transport, which disrupts the mic audio route and kills the
     /// speech recognizer — so we force a clean restart (reconfigure audio + restart listening).
-    /// This is OpenVision's equivalent of OpenGlasses' "restore audio for wake word" after capture.
-    private func resumeWakeWordListening() {
-        guard settingsManager.settings.wakeWordEnabled,
-              voiceCommandService.authorizationStatus == .authorized else { return }
-        voiceCommandService.stopListening()
-        // Glasses → Bluetooth HFP; phone-only → built-in mic + LOUD speaker (else TTS is inaudible).
-        if glassesAudioAvailable {
-            try? AudioSessionManager.shared.configureForGlasses()
-        } else {
-            try? AudioSessionManager.shared.configureForPhone()
-        }
-        do {
-            try voiceCommandService.startListening()
-            print("[VoiceAgentView] ✓ Restored wake-word listening after camera use")
-        } catch {
-            print("[VoiceAgentView] Failed to restore listening after camera: \(error)")
-        }
+    /// Resume listening after a spoken response ends — camera and text commands end identically:
+    /// the persistent audio engine keeps running through a capture (never torn down — a rebuild
+    /// would force a fresh Bluetooth HFP negotiation the glasses can't service right after
+    /// streaming, leaving the mic deaf). Conversation mode's silence timeout then returns to idle.
+    /// restartRecognition() revives the engine in place if the camera's route change stopped it.
+    private func resumeListeningAfterSpeaking() {
+        voiceCommandService.enterConversationMode()
     }
 
-    /// Configure audio routing to use glasses mic/speaker if available
-    /// True only when the glasses are actually reachable as a Bluetooth audio device. Registration
-    /// alone isn't enough — the glasses can be registered but powered off / not worn, which would
-    /// route TTS to the silent earpiece. When false, use the phone's loud speaker.
-    private var glassesAudioAvailable: Bool {
-        glassesManager.isRegistered && AudioSessionManager.shared.isBluetoothAvailable
+    /// Apply the preferred audio route: the glasses' Bluetooth mic + speaker when the user wants it
+    /// and they're the connected audio device, otherwise the phone's built-in mic + loud speaker.
+    /// Attempting glasses is what makes iOS expose the HFP mic — so we try it directly rather than
+    /// pre-checking availability (which can't see HFP until it's allowed). Returns true on glasses.
+    @discardableResult
+    private func applyPreferredAudioRoute() -> Bool {
+        if settingsManager.settings.preferGlassesMic, glassesManager.isRegistered,
+           (try? AudioSessionManager.shared.configureForGlasses()) == true {
+            return true
+        }
+        // Glasses mic off, glasses not connected as audio, or no HFP input available → phone.
+        // Loud speaker so spoken replies are audible (not the quiet earpiece).
+        print("[VoiceAgentView] Using iPhone mic + speaker (glasses mic off or unavailable)")
+        try? AudioSessionManager.shared.configureForPhone()
+        return false
     }
 
     private func configureAudioForGlasses() {
-        guard glassesAudioAvailable else {
-            // No glasses audio (not registered, or registered but off/disconnected): use the
-            // phone's LOUD speaker so spoken responses are audible — not the quiet earpiece.
-            print("[VoiceAgentView] No glasses audio route — using iPhone speaker")
-            try? AudioSessionManager.shared.configureForPhone()
-            return
-        }
-
-        // Stop listening temporarily if already active
         let wasListening = voiceCommandService.isListening
+        if wasListening { voiceCommandService.stopListening() }
+        applyPreferredAudioRoute()
         if wasListening {
-            voiceCommandService.stopListening()
-        }
-
-        do {
-            try AudioSessionManager.shared.configureForGlasses()
-            let route = AudioSessionManager.shared.currentRouteDescription
-            print("[VoiceAgentView] Audio configured: \(route)")
-
-            if AudioSessionManager.shared.isBluetoothHFPActive {
-                print("[VoiceAgentView] ✓ Using glasses audio (Bluetooth HFP)")
-            } else {
-                print("[VoiceAgentView] ⚠ Bluetooth HFP not active, check glasses connection")
-            }
-        } catch {
-            print("[VoiceAgentView] Failed to configure audio for glasses: \(error)")
-            // Continue anyway - will fall back to iPhone audio
-        }
-
-        // Restart listening with new audio configuration
-        if wasListening {
-            do {
-                try voiceCommandService.startListening()
-                print("[VoiceAgentView] Restarted listening with new audio config")
-            } catch {
-                print("[VoiceAgentView] Failed to restart listening: \(error)")
-            }
+            try? voiceCommandService.startListening()
         }
     }
 
@@ -1373,8 +1343,12 @@ struct VoiceAgentView: View {
         if glassesManager.isStreaming && !isLiveVideoMode {
             await glassesManager.stopStreaming()
         }
-        // The glasses camera (0.4.0, Bluetooth) disrupts the mic route — restore listening.
-        resumeWakeWordListening()
+        // Do NOT touch the audio stack here. Tearing down / rebuilding the recognizer around the
+        // camera is what broke the HFP mic: every rebuild forces a fresh Bluetooth SCO negotiation,
+        // which the glasses can't service right after streaming (mic stays deaf for tens of seconds,
+        // with an audible reconnect chirp per attempt). OpenGlasses keeps its wake-word engine + mic
+        // tap alive straight through photo capture — audio just gaps during the stream and resumes
+        // into the same running engine. We now do the same; see restartRecognition()'s engine check.
         return frame
     }
 

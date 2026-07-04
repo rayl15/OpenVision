@@ -53,6 +53,22 @@ struct VoiceSettingsView: View {
                 }
             }
 
+            // Microphone Section
+            Section {
+                Toggle(isOn: $settingsManager.settings.preferGlassesMic) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Use Glasses Mic")
+                        Text("Listen through the glasses when worn")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } header: {
+                Text("Microphone")
+            } footer: {
+                Text("When on, voice input uses the glasses' Bluetooth microphone for true hands-free use, and falls back to the phone mic automatically when the glasses aren't the audio device. Uses more battery. Turn off to always use the phone mic.")
+            }
+
             // Conversation Section
             Section {
                 Picker("Auto-End Timeout", selection: $settingsManager.settings.conversationTimeout) {
