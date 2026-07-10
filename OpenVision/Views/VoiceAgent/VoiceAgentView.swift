@@ -713,8 +713,12 @@ struct VoiceAgentView: View {
             if self.ttsService.isSpeaking {
                 print("[VoiceAgentView] Stopping TTS due to wake word interrupt")
                 self.ttsService.stop()
+                self.ttsStreaming = false   // keep view flag in sync with the cleared stream
                 KokoroTTSService.shared.stop()
                 self.audioPlayback.stop()
+                // Cancel any in-flight on-device generation too — otherwise its next streamed
+                // token would immediately restart speech we just stopped.
+                GemmaLocalService.shared.interrupt()
                 self.agentState = .listening
             }
 
@@ -821,10 +825,20 @@ struct VoiceAgentView: View {
                 // New reply: reset the sentence-streaming cursor for a clean start.
                 self.ttsStreaming = false
                 self.ttsStreamSpokenChars = 0
-            } else if self.agentState == .thinking && !self.ttsService.isSpeaking {
-                // Return to the live video indicator, not plain listening, while in live mode.
-                self.agentState = self.isLiveVideoMode ? .liveVideo
-                    : (self.isSessionActive ? .listening : .idle)
+            } else {
+                // Generation ended (always fires via defer, even when interrupted/superseded).
+                // If a streamed utterance is still open, onAgentMessage never fired to close it —
+                // close it here so streamingActive/isSpeaking don't stick true and freeze the
+                // wake-word listener (queued sentences still drain and reset isSpeaking).
+                if self.ttsStreaming {
+                    self.ttsService.endStreaming()
+                    self.ttsStreaming = false
+                }
+                if self.agentState == .thinking && !self.ttsService.isSpeaking {
+                    // Return to the live video indicator, not plain listening, while in live mode.
+                    self.agentState = self.isLiveVideoMode ? .liveVideo
+                        : (self.isSessionActive ? .listening : .idle)
+                }
             }
         }
 
