@@ -193,6 +193,15 @@ struct VoiceAgentView: View {
             print("[VoiceAgentView] VoiceCommandService state changed to: \(newState)")
             switch newState {
             case .idle:
+                // In live video mode, a silence timeout must NOT end the mode — the user expects
+                // to keep asking questions (camera stays on) until they say "stop video". Re-arm
+                // conversation mode so the next question is heard without a fresh wake word.
+                if isLiveVideoMode {
+                    print("[VoiceAgentView] Idle during live video — re-arming conversation mode")
+                    voiceCommandService.enterConversationMode()
+                    agentState = .liveVideo
+                    return
+                }
                 // A real conversation end is the recognizer going idle *while we were listening*
                 // for the user (silence timeout). An .idle in any other state (.connecting startup,
                 // .thinking/.toolRunning command processing, .speaking a reply) is a transient from
@@ -225,11 +234,17 @@ struct VoiceAgentView: View {
                     }
                 }
             case .listening:
-                if isSessionActive {
+                // Keep the live indicator up in live video mode (don't clobber it back to
+                // plain .listening, which would let the next idle tear the session down).
+                if isLiveVideoMode {
+                    agentState = .liveVideo
+                } else if isSessionActive {
                     agentState = .listening
                 }
             case .conversationMode:
-                if isSessionActive {
+                if isLiveVideoMode {
+                    agentState = .liveVideo
+                } else if isSessionActive {
                     agentState = .listening
                 }
             case .processing:
@@ -753,6 +768,12 @@ struct VoiceAgentView: View {
 
         // Conversation timeout (user didn't speak after AI response)
         voiceCommandService.onConversationTimeout = {
+            // In live video mode, silence must not end the session — the .idle state handler
+            // re-arms conversation mode so the user can keep asking until they say "stop video".
+            if self.isLiveVideoMode {
+                print("[VoiceAgentView] Conversation timeout during live video — staying live")
+                return
+            }
             print("[VoiceAgentView] Conversation timeout - returning to idle")
             self.stopSession()
         }
