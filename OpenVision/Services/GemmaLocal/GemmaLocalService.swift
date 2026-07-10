@@ -525,6 +525,22 @@ final class GemmaLocalService: ObservableObject {
         }
     }
 
+    /// Like `routeCommand`, but streams the cumulative model output via `onPartial` so the caller
+    /// can start speaking a plain answer before generation finishes. Face/tool routes emit a JSON
+    /// object beginning with "{"; the caller withholds speech until it sees the output isn't JSON.
+    func routeCommandStreaming(_ command: String, onPartial: @escaping (String) -> Void) async -> RouteResult {
+        let history = ConversationContext.shared.turns
+        return await LocalAgent.route(command, history: history) { [weak self] system, hist, user in
+            guard let self else { return nil }
+            var messages: [Chat.Message] = [.init(role: .system, content: system)]
+            for turn in hist {
+                messages.append(.init(role: turn.role == "assistant" ? .assistant : .user, content: turn.content))
+            }
+            messages.append(.init(role: .user, content: user))
+            return try? await self.rawGenerate(messages: messages, maxTokens: 200, temperature: 0.3, onPartial: onPartial)
+        }
+    }
+
     func reformulateSearchQuery(question: String, triedQuery: String) async -> String? {
         let out = try? await rawGenerate(messages: [
             .init(role: .system, content: LocalAgent.reformulateSystemPrompt),
@@ -544,8 +560,10 @@ final class GemmaLocalService: ObservableObject {
         }
     }
 
-    /// One-shot text generation (no streaming/callbacks) — used by the intent router.
-    private func rawGenerate(messages: [Chat.Message], maxTokens: Int, temperature: Float) async throws -> String {
+    /// One-shot text generation used by the intent router. Optionally emits the cumulative text
+    /// via `onPartial` per token so the caller can pipeline speech (Apple TTS) behind generation.
+    private func rawGenerate(messages: [Chat.Message], maxTokens: Int, temperature: Float,
+                             onPartial: ((String) -> Void)? = nil) async throws -> String {
         guard let container = modelContainer else { throw GemmaLocalError.modelNotLoaded }
         guard UIApplication.shared.applicationState != .background else { throw GemmaLocalError.backgrounded }
         let userInput = UserInput(chat: messages)
@@ -556,7 +574,13 @@ final class GemmaLocalService: ObservableObject {
         }
         var full = ""
         for await item in stream {
-            if case .chunk(let piece) = item { full += piece }
+            if case .chunk(let piece) = item {
+                full += piece
+                if let onPartial {
+                    let snapshot = full
+                    await MainActor.run { onPartial(snapshot) }
+                }
+            }
         }
         Memory.clearCache()
         return full

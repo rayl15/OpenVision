@@ -1444,10 +1444,30 @@ struct VoiceAgentView: View {
             speakResponse("This on-device model is text only. For camera questions, select SmolVLM2 as your local model, or switch to Gemini or OpenClaw in Settings.")
             return
         }
-        switch await llm.routeCommand(command) {
+        // Route the command. On the local backend with Apple TTS, stream the answer: speak
+        // sentences as they generate. Face/tool routes emit JSON starting with "{", so we only
+        // begin speaking once the streamed output's first non-space char proves it's a plain
+        // answer — never for a structured route.
+        let result: LocalAgent.RouteResult
+        if let gemma = llm as? GemmaLocalService, usingAppleTTS {
+            ttsStreaming = false
+            ttsStreamSpokenChars = 0
+            result = await gemma.routeCommandStreaming(command) { cumulative in
+                let lead = cumulative.trimmingCharacters(in: .whitespacesAndNewlines).first
+                guard let lead, lead != "{" else { return }   // JSON route → don't speak
+                self.feedStreamingSpeech(cumulative, isFinal: false)
+            }
+        } else {
+            result = await llm.routeCommand(command)
+        }
+
+        switch result {
         case .face(let intent):
+            // Safety: if we mis-started streaming (answer contained a stray "{"), cancel it.
+            if ttsStreaming { ttsService.stop(); ttsStreaming = false }
             await handleFaceIntent(intent)
         case .webSearch(let query):
+            if ttsStreaming { ttsService.stop(); ttsStreaming = false }
             NSLog("[OV] web search: \"%@\"", query)
             var result = await WebSearchService.search(query)
             // Agentic retry: if the first query found nothing, let the model reformulate once.
@@ -1456,10 +1476,14 @@ struct VoiceAgentView: View {
                 result = await WebSearchService.search(better)
             }
             let answer = await llm.answerWithSearchResult(question: command, result: result)
-            speakResponse(answer)
+            speakResponse(answer)   // separate generation — not streamed here
             ConversationContext.shared.record(user: command, assistant: answer)
         case .answer(let text):
-            speakResponse(text)
+            if ttsStreaming {
+                feedStreamingSpeech(text, isFinal: true)   // flush the tail, close the session
+            } else {
+                speakResponse(text)   // Kokoro, or non-Gemma backend
+            }
             ConversationContext.shared.record(user: command, assistant: text)
         }
         agentState = isSessionActive ? .listening : .idle
