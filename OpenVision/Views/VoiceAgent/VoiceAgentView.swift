@@ -966,11 +966,14 @@ struct VoiceAgentView: View {
         // Check for live video mode commands
         let startLiveKeywords = ["start video stream", "start live video", "start video", "start streaming",
                                  "enable video", "live mode", "go live", "video mode"]
-        let stopLiveKeywords = ["stop video stream", "stop live video", "stop video", "stop streaming",
-                               "disable video", "end live mode", "exit video mode", "stop live"]
 
         let isStartLiveCommand = startLiveKeywords.contains { lowerCommand.contains($0) }
-        let isStopLiveCommand = stopLiveKeywords.contains { lowerCommand.contains($0) }
+        // Fuzzy stop match: any "video"/"stream" phrase with a stop-like word. Tolerates Apple STT
+        // dropping the leading 's' ("stop video" → "top video"), which previously sailed past the
+        // exact-keyword list and got sent to the model as a question instead of ending the mode.
+        let mentionsVideo = lowerCommand.contains("video") || lowerCommand.contains("stream")
+        let stopWords = ["stop", "top ", "end ", "exit", "disable", "close", "quit", "turn off"]
+        let isStopLiveCommand = mentionsVideo && stopWords.contains { lowerCommand.contains($0) }
 
         // Handle live video mode commands
         if isStartLiveCommand {
@@ -1372,15 +1375,21 @@ struct VoiceAgentView: View {
     /// describes the image instead of protesting that it can't take photos.
     private func visionPromptFromCommand(_ command: String) -> String {
         var s = command.lowercased()
+        // Only strip explicit photo-capture wording — that's what makes a VLM refuse ("I can't
+        // take photos"). Do NOT strip politeness/filler ("would you", "right now", "of this"):
+        // removing those mid-sentence mangled real questions ("what am I looking at right now"
+        // → "what am I looking at"; "would you tell me which plant" → "tell me which plant").
         let triggers = [
             "take a picture of this", "take a photo of this", "take a picture", "take a photo",
             "take photo", "take picture", "capture a photo", "capture photo", "snap a photo",
-            "snap a picture", "can you", "could you", "would you", "please", "for me", "of this",
-            "right now", "go ahead and"
+            "snap a picture", "go ahead and take"
         ]
         for t in triggers { s = s.replacingOccurrences(of: t, with: " ") }
         s = s.replacingOccurrences(of: "  ", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-        while s.hasPrefix("and ") { s = String(s.dropFirst(4)) }
+        // Trim leftover connective prefixes left after removing the trigger ("...and tell me…").
+        for prefix in ["and ", "of this ", "of ", "please "] {
+            while s.hasPrefix(prefix) { s = String(s.dropFirst(prefix.count)) }
+        }
         s = s.trimmingCharacters(in: CharacterSet(charactersIn: " ,.?!"))
         if s.count < 3 {
             return "What is the main object in this image? Name it specifically and describe its key visible details in 2–3 sentences."
@@ -1515,25 +1524,15 @@ struct VoiceAgentView: View {
         var imageData: Data?
         var startedStreamingForPhoto = false
 
-        // Start streaming if glasses are registered but not streaming
+        // Start streaming if glasses are registered but not streaming. `startStreaming()` only
+        // returns after `session.start()` completes (isStreaming is already true here), so the
+        // old "poll up to 3s for isStreaming" loop + fixed 500ms sleep were dead weight that just
+        // kept the LED on longer. freshLiveFrame() below already waits for the first real frame,
+        // so drop the artificial delay entirely.
         if glassesManager.isRegistered && !glassesManager.isStreaming {
             print("[VoiceAgentView] Starting glasses camera stream for photo...")
             await glassesManager.startStreaming()
             startedStreamingForPhoto = true
-
-            // Wait for stream to actually be ready (up to 3 seconds)
-            for _ in 0..<30 {
-                if glassesManager.isStreaming {
-                    print("[VoiceAgentView] Stream is ready!")
-                    break
-                }
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-            }
-
-            // Give extra time for first frames to arrive
-            if glassesManager.isStreaming {
-                try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
-            }
         }
 
         // Capture straight from the live video stream. The glasses' one-shot photo API
