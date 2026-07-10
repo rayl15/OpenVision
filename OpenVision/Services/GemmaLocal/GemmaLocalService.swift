@@ -139,16 +139,67 @@ final class GemmaLocalService: ObservableObject {
     // mlx-swift-lm 3.31.3 ships a native Gemma 4 VLM (text + vision) registered in
     // VLMModelFactory, so no custom model registration is needed.
 
+    // MARK: - SmolVLM preprocessor patch (vision memory cap)
+
+    /// Cap for SmolVLM2's `size.longest_edge`. As shipped (2048), the processor UPSCALES every
+    /// input to 2048px — regardless of how small we hand it in — and tiles it into ~25 384px
+    /// crops, all encoded in one batched vision pass: an instant jetsam kill on iPhone
+    /// (observed: SIGKILL right at "starting generation"). 384 → 1 tile + the global image =
+    /// 2 encoder inputs. This is the documented SmolVLM memory knob (lower longest_edge to
+    /// trade detail for memory); raise to 768 (5 tiles) if quality needs it and memory allows.
+    private static let smolVLMMaxLongestEdge = 384
+
+    /// Rewrite `preprocessor_config.json` in the downloaded SmolVLM snapshot(s) to cap
+    /// `size.longest_edge`. Safe against re-downloads: the HuggingFace cache is existence-checked
+    /// (content-addressed blobs are not re-hashed), so a patched file is used as-is. Idempotent.
+    nonisolated private static func patchSmolVLMPreprocessorConfig() {
+        let fm = FileManager.default
+        for dir in [FileManager.SearchPathDirectory.cachesDirectory, .applicationSupportDirectory] {
+            guard let base = fm.urls(for: dir, in: .userDomainMask).first else { continue }
+            let hf = base.appendingPathComponent("huggingface", isDirectory: true)
+            guard let en = fm.enumerator(at: hf, includingPropertiesForKeys: nil) else { continue }
+            for case let url as URL in en
+            where url.lastPathComponent == "preprocessor_config.json"
+                && url.path.localizedCaseInsensitiveContains("smolvlm") {
+                patchLongestEdge(at: url)
+            }
+        }
+    }
+
+    nonisolated private static func patchLongestEdge(at url: URL) {
+        guard let data = try? Data(contentsOf: url),
+              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              var size = json["size"] as? [String: Any] else { return }
+        let current = size["longest_edge"] as? Int
+        guard current != smolVLMMaxLongestEdge else { return }
+        size["longest_edge"] = smolVLMMaxLongestEdge
+        json["size"] = size
+        guard let out = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) else { return }
+        do {
+            // Plain (non-atomic) write follows the snapshot symlink and updates the blob in place.
+            try out.write(to: url)
+            NSLog("[OV] SmolVLM preprocessor patched at %@: longest_edge %d -> %d",
+                  url.lastPathComponent, current ?? -1, smolVLMMaxLongestEdge)
+        } catch {
+            NSLog("[OV] SmolVLM preprocessor patch FAILED: %@", "\(error)")
+        }
+    }
+
     // MARK: - Download (model manager)
 
     /// Download a model snapshot to disk (idempotent — skipped if already cached).
     func download(_ model: GemmaLocalModel, onProgress: @escaping (Double) -> Void) async throws {
         downloadProgress = 0
         // loadContainer fetches the snapshot if missing; reuse it as the download path.
+        // Patch first in case a snapshot already exists — the config is read during load.
+        Self.patchSmolVLMPreprocessorConfig()
         _ = try await loadModelContainer(modelId: model.modelId) { [weak self] p in
             self?.downloadProgress = p
             onProgress(p)
         }
+        // Patch again for the fresh-download case (the load above read the stock config, but
+        // connect() re-patches before the container that actually serves requests is loaded).
+        Self.patchSmolVLMPreprocessorConfig()
         downloadProgress = 1
     }
 
@@ -186,6 +237,10 @@ final class GemmaLocalService: ObservableObject {
         isProcessing = false
 
         Memory.cacheLimit = 20 * 1024 * 1024
+
+        // Cap SmolVLM's image-splitting resolution BEFORE the load reads the processor config
+        // (as shipped it tiles every photo into ~25 vision-encoder inputs → jetsam).
+        Self.patchSmolVLMPreprocessorConfig()
 
         do {
             print("[GemmaLocal] loading container…")

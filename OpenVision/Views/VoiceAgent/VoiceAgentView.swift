@@ -1196,7 +1196,19 @@ struct VoiceAgentView: View {
             return
         }
 
-        // Keep STT running and stay in conversation mode so follow-ups don't need the wake word.
+        // The glasses' Bluetooth HFP mic can't run while their camera streams (it goes deaf —
+        // the PR #15 lesson; photo mode survives because its stream is momentary). Live mode
+        // streams continuously, so force the phone mic + speaker for the whole session and
+        // rebuild recognition on that route. The preferred route is restored on stop.
+        voiceCommandService.stopListening()
+        try? AudioSessionManager.shared.configureForPhone()
+        do {
+            try voiceCommandService.startListening()
+        } catch {
+            print("[VoiceAgentView] Failed to restart STT on phone mic: \(error)")
+        }
+
+        // Stay in conversation mode so follow-ups don't need the wake word.
         voiceCommandService.enterConversationMode()
 
         isLiveVideoMode = true
@@ -1258,6 +1270,11 @@ struct VoiceAgentView: View {
 
         isLiveVideoMode = false
         agentState = isSessionActive ? .listening : .idle
+
+        // Local live mode forced the phone mic (HFP dies during camera streaming) and its STT
+        // may still be running — stop it so the restart below picks up the preferred route.
+        if voiceCommandService.isListening { voiceCommandService.stopListening() }
+        applyPreferredAudioRoute()
 
         // Always restart VoiceCommandService for wake word detection
         do {
