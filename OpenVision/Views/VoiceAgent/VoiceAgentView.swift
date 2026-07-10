@@ -767,12 +767,14 @@ struct VoiceAgentView: View {
     private func setupAIServiceCallbacks() {
         // Local Gemma callbacks
         GemmaLocalService.shared.onPartialResponse = { (partial: String) in
-            guard self.isSessionActive else { return }
+            guard self.isSessionActive || self.isLiveVideoMode else { return }
             // Show tokens as they stream so it doesn't look stuck on "thinking".
             self.aiTranscript = partial
         }
         GemmaLocalService.shared.onAgentMessage = { (message: String) in
-            guard self.isSessionActive else { return }
+            // In local live video mode replies must flow even if the session timer lapsed
+            // while the user was silently looking around.
+            guard self.isSessionActive || self.isLiveVideoMode else { return }
             self.aiTranscript = message
             self.speakResponse(message)
         }
@@ -780,7 +782,9 @@ struct VoiceAgentView: View {
             if isProcessing {
                 self.agentState = .thinking
             } else if self.agentState == .thinking && !self.ttsService.isSpeaking {
-                self.agentState = self.isSessionActive ? .listening : .idle
+                // Return to the live video indicator, not plain listening, while in live mode.
+                self.agentState = self.isLiveVideoMode ? .liveVideo
+                    : (self.isSessionActive ? .listening : .idle)
             }
         }
 
@@ -960,11 +964,15 @@ struct VoiceAgentView: View {
             return
         }
 
-        // If in live video mode, the live backend handles audio directly - don't process here
+        // If in live video mode, route by which live backend is driving it.
         if isLiveVideoMode {
-            // Audio is streamed to the backend directly, so this shouldn't be reached.
-            // Gemini can accept a text turn as a fallback; OpenAI Realtime uses audio only here.
-            if activeLiveService === geminiLive {
+            if activeLiveService == nil {
+                // Local (SmolVLM2) live mode: STT is the input path, so every command lands here.
+                // Answer it against the latest glasses frame.
+                await handleLocalLiveVideoCommand(command)
+            } else if activeLiveService === geminiLive {
+                // Cloud modes stream audio directly, so this shouldn't be reached — but Gemini
+                // can accept a text turn as a fallback. OpenAI Realtime is audio-only here.
                 do {
                     try await geminiLive.sendText(command)
                 } catch {
@@ -1057,6 +1065,14 @@ struct VoiceAgentView: View {
 
         guard glassesManager.isRegistered else {
             ttsService.speak("Please connect your glasses first")
+            return
+        }
+
+        // Fully on-device live video: with SmolVLM2 loaded as the local backend, keep the glasses
+        // camera streaming and answer each spoken question against the latest frame. No cloud,
+        // no WebSocket — Apple STT keeps listening and the reply is spoken via the selected TTS.
+        if settingsManager.settings.aiBackend == .localGemma && GemmaLocalService.shared.visionReady {
+            await startLocalLiveVideoMode()
             return
         }
 
@@ -1163,6 +1179,51 @@ struct VoiceAgentView: View {
             return (openAIRealtime, "OpenAI Realtime")
         }
         return nil
+    }
+
+    /// Fully on-device live video (SmolVLM2). Unlike the cloud modes, audio stays on the normal
+    /// Apple STT path — we just keep the glasses camera streaming and mark the mode active, so
+    /// each spoken question is answered against the latest frame (see processCommand). Replies
+    /// speak through the selected TTS engine as usual.
+    private func startLocalLiveVideoMode() async {
+        print("[VoiceAgentView] Starting local live video mode (SmolVLM2)...")
+
+        if !glassesManager.isStreaming {
+            await glassesManager.startStreaming()
+        }
+        guard glassesManager.isStreaming else {
+            ttsService.speak("I couldn't start the glasses camera")
+            return
+        }
+
+        // Keep STT running and stay in conversation mode so follow-ups don't need the wake word.
+        voiceCommandService.enterConversationMode()
+
+        isLiveVideoMode = true
+        agentState = .liveVideo
+
+        print("[VoiceAgentView] ✓ Local live video mode active - SmolVLM2 answering on latest frame")
+        ttsService.speak("Live video mode active, on device")
+    }
+
+    /// Answer a spoken question in local live video mode: latest glasses frame + question → SmolVLM2.
+    private func handleLocalLiveVideoCommand(_ command: String) async {
+        agentState = .thinking
+        guard let frame = glassesManager.lastFrame,
+              let jpeg = frame.jpegData(compressionQuality: 0.6) else {
+            speakResponse("I don't have a camera frame yet — give it a second.")
+            agentState = .liveVideo
+            return
+        }
+        do {
+            // Strip "take a photo"-style wording; the frame is already attached.
+            let prompt = visionPromptFromCommand(command)
+            try await GemmaLocalService.shared.sendMessage(prompt, imageData: jpeg)
+        } catch {
+            print("[VoiceAgentView] Local live video inference failed: \(error)")
+            speakResponse("Sorry, that didn't work. \(error.localizedDescription)")
+        }
+        if isLiveVideoMode { agentState = .liveVideo }
     }
 
     /// Stop live video mode - return to OpenClaw
@@ -1306,9 +1367,15 @@ struct VoiceAgentView: View {
     /// generation that routes a face action, a web search, or a direct spoken answer.
     private func handleLocalCommand(_ command: String, llm: LocalTextLLM, isPhotoCommand: Bool) async {
         if isPhotoCommand {
-            // On-device models are text-only for scene description — vision needs a cloud backend.
+            // SmolVLM2 handles photos fully on-device; other local models are text-only
+            // (Gemma E2B's vision hit the jetsam limit — see GemmaLocalModel.supportsOnDeviceVision).
+            if settingsManager.settings.aiBackend == .localGemma && GemmaLocalService.shared.visionReady {
+                print("[VoiceAgentView] Photo command on local SmolVLM2 — capturing...")
+                await captureAndSendPhoto(withPrompt: command)
+                return
+            }
             agentState = isSessionActive ? .listening : .idle
-            speakResponse("On-device mode is text only. To use the camera to describe things, switch to Gemini or OpenClaw in Settings.")
+            speakResponse("This on-device model is text only. For camera questions, select SmolVLM2 as your local model, or switch to Gemini or OpenClaw in Settings.")
             return
         }
         switch await llm.routeCommand(command) {

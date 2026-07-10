@@ -6,10 +6,10 @@
 // connect()/disconnect()/sendMessage(). "Connect" loads the model into memory; "disconnect"
 // unloads it. Selection is a manual knob (Settings → AI Backend → Local (Gemma 4)).
 //
-// Uses the native Gemma 4 VLM in mlx-swift-lm 3.31.3 (registered in VLMModelFactory as
-// "gemma4"), which handles BOTH text and vision — so "what's this?" with a glasses photo
-// runs fully on-device. No custom model port or pixel preprocessing needed: images go in
-// via UserInput / Chat.Message and the model's processor handles the rest.
+// Vision: SmolVLM2 handles photos fully on-device ("what's this?" with a glasses frame) —
+// images go in via UserInput / Chat.Message, resized to bound encoder memory. Gemma 4 E2B,
+// though a VLM, stays TEXT-ONLY: its full-res image encoding hit the ~6GB jetsam limit and
+// crashed. See GemmaLocalModel.supportsOnDeviceVision.
 //
 // NOTE: Requires iOS 18+ and a physical device (MLX is unavailable on the Simulator).
 
@@ -64,7 +64,7 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
         case .gemma2_2B: return "2B • ~1.5 GB • balanced text"
         case .qwen3B: return "3B • ~1.9 GB • strongest text, still light"
         case .e2b: return "2B • ~3.6 GB • vision-capable, heaviest"
-        case .smolVLM2_2B: return "2.2B • ~2.6 GB • lighter vision model"
+        case .smolVLM2_2B: return "2.2B • ~2.6 GB • on-device vision: photos + live video"
         }
     }
 
@@ -74,6 +74,15 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
         case .e2b, .smolVLM2_2B: return true
         case .qwen05B, .gemma2_2B, .qwen3B: return false
         }
+    }
+
+    /// Whether we let this model *use* its vision on-device. Distinct from `isVLM`: Gemma 4 E2B
+    /// is a VLM but its image encoding pushed memory to the ~6GB jetsam limit and crashed, so it
+    /// stays text-only. SmolVLM2 is ~1GB lighter and built for image/video understanding — the
+    /// only model currently trusted with on-device photos (with input resized to keep the
+    /// encoder cheap; see sendMessage).
+    var supportsOnDeviceVision: Bool {
+        self == .smolVLM2_2B
     }
 
     static func from(modelId: String) -> GemmaLocalModel {
@@ -116,6 +125,13 @@ final class GemmaLocalService: ObservableObject {
 
     private var modelContainer: ModelContainer?
     private var loadedModelId: String?
+
+    /// True when the loaded model can take photos on-device (currently SmolVLM2 only).
+    /// Unknown model ids resolve to .e2b in from(modelId:), which is vision-disabled — safe.
+    var visionReady: Bool {
+        guard let id = loadedModelId, modelContainer != nil else { return false }
+        return GemmaLocalModel.from(modelId: id).supportsOnDeviceVision
+    }
     private var cancelRequested = false
     private var generationID = 0   // bumped per request; stale generations stay silent
     private var enteredBackgroundDuringGeneration = false
@@ -302,9 +318,17 @@ final class GemmaLocalService: ObservableObject {
         cancelRequested = false
         defer { setProcessing(false) }
 
-        // Local Gemma is TEXT-ONLY for stability. On-device vision (encoding an image) pushed
-        // memory to the ~6GB jetsam limit and crashed; photo commands route to the cloud
-        // backend instead. `imageData` is intentionally ignored here.
+        // Vision policy: images are used ONLY when the loaded model is trusted with on-device
+        // vision (SmolVLM2). Gemma 4 E2B's image encoding pushed memory to the ~6GB jetsam limit
+        // and crashed, so for every other model `imageData` is ignored and photo commands route
+        // to a cloud backend (VoiceAgentView gates that path on `visionReady`).
+        var visionImage: CIImage?
+        if let imageData, visionReady {
+            visionImage = CIImage(data: imageData)
+            if visionImage == nil {
+                NSLog("[OV] GemmaLocal: image data didn't decode — falling back to text-only")
+            }
+        }
 
         // Keep replies short — this is spoken aloud on glasses, so long answers get tiresome
         // (and the TTS cuts off after ~a minute). Aim for a couple of natural sentences.
@@ -314,8 +338,17 @@ final class GemmaLocalService: ObservableObject {
 
         var chat: [Chat.Message] = []
         chat.append(.init(role: .system, content: systemContent))
-        chat.append(.init(role: .user, content: text))
-        let userInput = UserInput(chat: chat)
+        if let visionImage {
+            chat.append(.init(role: .user, content: text, images: [.ciImage(visionImage)]))
+        } else {
+            chat.append(.init(role: .user, content: text))
+        }
+        // Resize keeps the vision encoder's memory bounded (the jetsam killer was full-resolution
+        // encoding). 512px is plenty for "what am I looking at" over glasses frames.
+        let userInput = UserInput(
+            chat: chat,
+            processing: .init(resize: visionImage != nil ? CGSize(width: 512, height: 512) : nil)
+        )
 
         // Tag this generation. If a newer request starts, older ones stop and stay silent —
         // prevents a stale reply (e.g. a previous photo's description) bleeding into a new answer.
