@@ -1,9 +1,10 @@
 // OpenVision - SwirlOrb.swift
-// The assistant's identity: a swirling orb of luminous emerald light trails.
+// The assistant's identity: a clean orb of glowing emerald light-loops.
 //
-// Recreates the reference's glowing "vortex" — several trimmed rings rotating on offset 3D axes
-// with additive blending, over a soft radial core. `isActive` speeds it up (listening/speaking),
-// `intensity` (0…1 audio level) makes it breathe.
+// Smooth continuous rings tilted on fixed 3D axes and slowly counter-rotating around a bright
+// bloom — reads as a premium "AI orb" rather than random smears. `isActive` speeds it up
+// (listening/speaking), `intensity` (0…1 audio level) makes it breathe. No drawingGroup — that
+// was clipping the blur into a visible rectangle.
 
 import SwiftUI
 
@@ -11,59 +12,70 @@ struct SwirlOrb: View {
     var isActive: Bool = false
     var isThinking: Bool = false
     var intensity: CGFloat = 0
-    var size: CGFloat = 220
+    var size: CGFloat = 230
 
-    private let ringCount = 5
+    private let ringCount = 4
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            let speedMul = isActive ? 2.1 : (isThinking ? 1.5 : 0.8)
+            let speed = isActive ? 1.9 : (isThinking ? 1.35 : 0.7)
 
             ZStack {
-                // Soft luminous core
+                // Outer bloom — fades fully to clear well inside the frame, so there's no hard edge.
                 Circle()
-                    .fill(Theme.glowGradient(0.85))
-                    .frame(width: size * 1.15, height: size * 1.15)
-                    .blur(radius: 18)
-
-                // Swirling light-trail rings
-                ForEach(0..<ringCount, id: \.self) { i in
-                    let f = Double(i)
-                    let phase = t * (0.35 + f * 0.12) * speedMul
-                    let ringSize = size * (0.52 + f * 0.085)
-
-                    Circle()
-                        .trim(from: 0.04, to: 0.82)
-                        .stroke(
-                            Theme.ringGradient,
-                            style: StrokeStyle(lineWidth: size * (0.045 - f * 0.004), lineCap: .round)
+                    .fill(
+                        RadialGradient(
+                            colors: [Theme.glow.opacity(0.55), Theme.accent.opacity(0.18), .clear],
+                            center: .center, startRadius: 0, endRadius: size * 0.62
                         )
-                        .frame(width: ringSize, height: ringSize)
-                        .rotation3DEffect(
-                            .radians(phase),
-                            axis: (x: cos(f * 1.3), y: sin(f * 1.9) + 0.3, z: 0.35)
-                        )
-                        .rotationEffect(.radians(phase * 0.5 + f))
-                        .blur(radius: 1.5 + CGFloat(i) * 0.9)
-                        .blendMode(.plusLighter)
-                }
+                    )
+                    .frame(width: size * 1.25, height: size * 1.25)
+                    .blur(radius: 26)
 
-                // Bright center highlight
+                // Glow pass (blurred) + crisp pass of the same loops → luminous but defined.
+                loops(t: t, speed: speed)
+                    .blur(radius: 9)
+                    .opacity(0.9)
+                loops(t: t, speed: speed)
+
+                // Bright core
                 Circle()
-                    .fill(Theme.accentBright)
-                    .frame(width: size * 0.14, height: size * 0.14)
-                    .blur(radius: size * 0.06)
-                    .blendMode(.plusLighter)
+                    .fill(
+                        RadialGradient(
+                            colors: [.white.opacity(0.95), Theme.accentBright.opacity(0.7), .clear],
+                            center: .center, startRadius: 0, endRadius: size * 0.16
+                        )
+                    )
+                    .frame(width: size * 0.4, height: size * 0.4)
+                    .blur(radius: 6)
             }
-            .scaleEffect(1.0 + intensity * 0.10)
-            .frame(width: size * 1.3, height: size * 1.3)
-            .drawingGroup()   // rasterize (Metal) — blur + additive blending stay smooth
+            .frame(width: size * 1.35, height: size * 1.35)
+            .scaleEffect(1.0 + intensity * 0.08)
+            .compositingGroup()
+        }
+    }
+
+    /// The interlocked light-loops: full circles, thin consistent stroke, tilted on fixed axes,
+    /// each spinning slowly at a slightly different rate so they weave.
+    @ViewBuilder
+    private func loops(t: TimeInterval, speed: Double) -> some View {
+        ZStack {
+            ForEach(0..<ringCount, id: \.self) { i in
+                let f = Double(i)
+                let spin = t * (0.28 + f * 0.09) * speed
+                Circle()
+                    .stroke(Theme.ringGradient, style: StrokeStyle(lineWidth: size * 0.022, lineCap: .round))
+                    .frame(width: size * 0.66, height: size * 0.66)
+                    .rotation3DEffect(.degrees(60), axis: (x: 1, y: 0, z: 0))                 // tilt to an ellipse
+                    .rotationEffect(.radians(spin + f * .pi / Double(ringCount)))              // spin + even offset
+                    .rotation3DEffect(.degrees(f * 44), axis: (x: 0.2, y: 0.4, z: 1))          // fan the loops in 3D
+            }
         }
     }
 }
 
-/// Small line-art orb mark for the tab bar / compact contexts (two interlocked rings).
+/// Compact line-art orb mark for the tab bar (two interlocked tilted rings).
 struct SwirlMark: View {
     var size: CGFloat = 28
     var color: Color = Theme.accent
@@ -71,13 +83,15 @@ struct SwirlMark: View {
     var body: some View {
         ZStack {
             Circle()
-                .trim(from: 0.1, to: 0.9)
-                .stroke(color, style: StrokeStyle(lineWidth: size * 0.09, lineCap: .round))
-                .rotation3DEffect(.degrees(35), axis: (x: 1, y: 0.4, z: 0))
+                .stroke(color, style: StrokeStyle(lineWidth: size * 0.08, lineCap: .round))
+                .frame(width: size * 0.9, height: size * 0.9)
+                .rotation3DEffect(.degrees(55), axis: (x: 1, y: 0, z: 0))
+                .rotationEffect(.degrees(30))
             Circle()
-                .trim(from: 0.1, to: 0.9)
-                .stroke(color, style: StrokeStyle(lineWidth: size * 0.09, lineCap: .round))
-                .rotation3DEffect(.degrees(-35), axis: (x: 1, y: -0.4, z: 0))
+                .stroke(color, style: StrokeStyle(lineWidth: size * 0.08, lineCap: .round))
+                .frame(width: size * 0.9, height: size * 0.9)
+                .rotation3DEffect(.degrees(55), axis: (x: 1, y: 0, z: 0))
+                .rotationEffect(.degrees(-30))
         }
         .frame(width: size, height: size)
     }
@@ -86,10 +100,7 @@ struct SwirlMark: View {
 #Preview {
     ZStack {
         Theme.bg.ignoresSafeArea()
-        VStack(spacing: 40) {
-            SwirlOrb(isActive: true, intensity: 0.4)
-            SwirlMark(size: 40)
-        }
+        SwirlOrb(isActive: true, intensity: 0.3)
     }
     .preferredColorScheme(.dark)
 }

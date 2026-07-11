@@ -63,7 +63,7 @@ struct MainTabView: View {
                 }
                 .tag(Tab.settings)
         }
-        .tint(.blue)
+        .tint(Theme.accent)
         .onAppear {
             // Customize tab bar appearance for dark mode
             let appearance = UITabBarAppearance()

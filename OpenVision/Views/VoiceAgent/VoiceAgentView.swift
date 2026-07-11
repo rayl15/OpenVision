@@ -365,7 +365,7 @@ struct VoiceAgentView: View {
                 isActive: agentState == .listening || agentState == .speaking,
                 isThinking: agentState == .thinking || agentState == .toolRunning,
                 intensity: audioLevel,
-                size: 200
+                size: 250
             )
             .onTapGesture { toggleSession() }
 
