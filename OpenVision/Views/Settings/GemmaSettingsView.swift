@@ -1,5 +1,5 @@
 // OpenVision - GemmaSettingsView.swift
-// Download & manage the on-device Gemma 4 model for the Local backend.
+// Download & manage the on-device MLX models for the Local backend.
 
 import SwiftUI
 
@@ -12,49 +12,30 @@ struct GemmaSettingsView: View {
     @State private var downloadError: String?
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
-    @State private var modelSizeBytes: Int64 = 0
+    /// On-disk bytes per model id (0 = not downloaded). Refreshed on appear and after changes.
+    @State private var sizes: [String: Int64] = [:]
 
+    private var selectedSizeBytes: Int64 { sizes[selectedModel.modelId] ?? 0 }
     private var sizeText: String {
-        ByteCountFormatter.string(fromByteCount: modelSizeBytes, countStyle: .file)
+        ByteCountFormatter.string(fromByteCount: selectedSizeBytes, countStyle: .file)
     }
+    private var selectedIsDownloaded: Bool { selectedSizeBytes > 0 }
+    private var activeModelId: String { settingsManager.settings.localGemmaModelId }
 
     var body: some View {
         Form {
             Section {
                 ForEach(GemmaLocalModel.allCases) { model in
                     Button {
-                        selectedModel = model
-                        refreshSize()
-                        // If this model is already on disk, make it the ACTIVE local model right
-                        // away. The setting used to persist only after a fresh download, so
-                        // switching between already-downloaded models never took effect — the
-                        // home screen (and the backend) stayed on the previous model.
-                        if GemmaLocalService.downloadedSizeBytes(for: model.modelId) > 0 {
-                            settingsManager.settings.localGemmaModelId = model.modelId
-                            settingsManager.settings.localGemmaModelReady = true
-                            settingsManager.saveNow()
-                        }
+                        select(model)
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(model.displayName)
-                                    .foregroundStyle(.primary)
-                                Text(model.detail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if selectedModel == model {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.tint)
-                            }
-                        }
+                        modelRow(model)
                     }
                 }
             } header: {
                 Text("Model")
             } footer: {
-                Text("Runs entirely on-device via Apple MLX. Requires iOS 18+ and a physical device — no API key, no cloud, works offline.")
+                Text("Runs entirely on-device via Apple MLX. Requires iOS 18+ and a physical device — no API key, no cloud, works offline. Tap a downloaded model to make it active.")
             }
 
             Section {
@@ -70,7 +51,7 @@ struct GemmaSettingsView: View {
                         download()
                     } label: {
                         Label(
-                            settingsManager.settings.isLocalGemmaConfigured ? "Re-download Model" : "Download Model",
+                            selectedIsDownloaded ? "Re-download Model" : "Download \(selectedModel.displayName)",
                             systemImage: "arrow.down.circle"
                         )
                     }
@@ -84,30 +65,28 @@ struct GemmaSettingsView: View {
             } header: {
                 Text("Download")
             } footer: {
-                if settingsManager.settings.isLocalGemmaConfigured {
-                    Label("Model ready — select “Local (MLX)” as your backend.", systemImage: "checkmark.seal.fill")
+                if selectedIsDownloaded {
+                    Label("\(selectedModel.displayName) is ready.", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                 } else {
                     Text("The first download is several GB — keep the app open and use Wi-Fi.")
                 }
             }
 
-            // Free up storage whenever there's model data on disk — even if the app's "ready" flag
-            // is off (e.g. orphaned files left by a previous incomplete delete).
-            if modelSizeBytes > 0 && !isDownloading {
+            if selectedIsDownloaded && !isDownloading {
                 Section {
                     Button(role: .destructive) {
                         showDeleteConfirm = true
                     } label: {
                         HStack {
-                            Label(isDeleting ? "Deleting…" : "Delete Downloaded Model", systemImage: "trash")
+                            Label(isDeleting ? "Deleting…" : "Delete \(selectedModel.displayName)", systemImage: "trash")
                             Spacer()
                             Text(sizeText).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     .disabled(isDeleting)
                 } footer: {
-                    Text("Removes \(sizeText) of model data from your phone. You can download it again anytime.")
+                    Text("Removes \(sizeText) of model data from your phone (only this model). You can download it again anytime.")
                 }
             }
         }
@@ -115,20 +94,74 @@ struct GemmaSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             selectedModel = GemmaLocalModel.from(modelId: settingsManager.settings.localGemmaModelId)
-            refreshSize()
+            refreshSizes()
         }
-        .alert("Delete downloaded model?", isPresented: $showDeleteConfirm) {
+        .alert("Delete \(selectedModel.displayName)?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) { deleteModel() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(modelSizeBytes > 0
+            Text(selectedSizeBytes > 0
                  ? "This frees up \(sizeText) of storage. You can re-download it anytime."
                  : "You can re-download it anytime.")
         }
     }
 
-    private func refreshSize() {
-        modelSizeBytes = GemmaLocalService.downloadedSizeBytes(for: selectedModel.modelId)
+    @ViewBuilder
+    private func modelRow(_ model: GemmaLocalModel) -> some View {
+        let downloaded = (sizes[model.modelId] ?? 0) > 0
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(model.displayName)
+                        .foregroundStyle(.primary)
+                    if model.modelId == activeModelId {
+                        Text("ACTIVE")
+                            .font(.caption2).fontWeight(.bold)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.accent.opacity(0.2)))
+                            .foregroundStyle(Theme.accent)
+                    }
+                }
+                Text(model.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if downloaded {
+                    Text("Downloaded • \(ByteCountFormatter.string(fromByteCount: sizes[model.modelId] ?? 0, countStyle: .file))")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                }
+            }
+            Spacer()
+            if selectedModel == model {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(.tint)
+            }
+        }
+    }
+
+    private func select(_ model: GemmaLocalModel) {
+        selectedModel = model
+        // If this model is already on disk, make it the ACTIVE local model right away. The
+        // setting used to persist only after a fresh download, so switching between
+        // already-downloaded models never took effect — the home screen (and the backend)
+        // stayed on the previous model.
+        if (sizes[model.modelId] ?? 0) > 0 {
+            settingsManager.settings.localGemmaModelId = model.modelId
+            settingsManager.settings.localGemmaModelReady = true
+            settingsManager.saveNow()
+        }
+    }
+
+    /// Measure every model's on-disk size off the main thread (walks a multi-GB tree).
+    private func refreshSizes() {
+        Task.detached {
+            var result: [String: Int64] = [:]
+            for model in GemmaLocalModel.allCases {
+                result[model.modelId] = GemmaLocalService.downloadedSizeBytes(for: model.modelId)
+            }
+            let sizes = result
+            await MainActor.run { self.sizes = sizes }
+        }
     }
 
     private func deleteModel() {
@@ -136,9 +169,12 @@ struct GemmaSettingsView: View {
         Task {
             let ok = await GemmaLocalService.shared.deleteDownloadedModel(selectedModel.modelId)
             if ok {
-                settingsManager.settings.localGemmaModelReady = false
-                settingsManager.saveNow()
-                modelSizeBytes = 0
+                // Only clear the "ready" flag when the ACTIVE model was deleted.
+                if selectedModel.modelId == settingsManager.settings.localGemmaModelId {
+                    settingsManager.settings.localGemmaModelReady = false
+                    settingsManager.saveNow()
+                }
+                refreshSizes()
             }
             isDeleting = false
         }
@@ -152,6 +188,8 @@ struct GemmaSettingsView: View {
                 try await gemma.download(selectedModel) { _ in }
                 settingsManager.settings.localGemmaModelId = selectedModel.modelId
                 settingsManager.settings.localGemmaModelReady = true
+                settingsManager.saveNow()
+                refreshSizes()
             } catch {
                 downloadError = error.localizedDescription
             }
