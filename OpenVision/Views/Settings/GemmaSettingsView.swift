@@ -79,7 +79,9 @@ struct GemmaSettingsView: View {
                 }
             }
 
-            if selectedIsDownloaded && !isDownloading {
+            // Any on-disk data (even an incomplete snapshot) must be deletable from here —
+            // this screen is the single place model storage is managed.
+            if selectedSizeBytes > 0 && !isDownloading {
                 Section {
                     Button(role: .destructive) {
                         showDeleteConfirm = true
@@ -92,7 +94,9 @@ struct GemmaSettingsView: View {
                     }
                     .disabled(isDeleting)
                 } footer: {
-                    Text("Removes \(sizeText) of model data from your phone (only this model). You can download it again anytime.")
+                    Text(selectedIsDownloaded
+                         ? "Removes \(sizeText) of model data from your phone (only this model). You can download it again anytime."
+                         : "Removes \(sizeText) of incomplete download data for this model.")
                 }
             }
         }
