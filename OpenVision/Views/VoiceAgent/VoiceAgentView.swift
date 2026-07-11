@@ -238,17 +238,15 @@ struct VoiceAgentView: View {
                         }
                     }
                 }
-            case .listening:
+            case .listening, .conversationMode:
                 // Keep the live indicator up in live video mode (don't clobber it back to
                 // plain .listening, which would let the next idle tear the session down).
                 if isLiveVideoMode {
                     agentState = .liveVideo
-                } else if isSessionActive {
-                    agentState = .listening
-                }
-            case .conversationMode:
-                if isLiveVideoMode {
-                    agentState = .liveVideo
+                } else if ttsService.isSpeaking || KokoroTTSService.shared.isSpeaking {
+                    // The recognizer restarts (→ conversation mode) mid-reply for barge-in; don't
+                    // let that flip the UI to "Listening" while the assistant is still speaking.
+                    agentState = .speaking
                 } else if isSessionActive {
                     agentState = .listening
                 }

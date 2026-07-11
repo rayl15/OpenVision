@@ -20,9 +20,12 @@ struct SwirlOrb: View {
     var size: CGFloat = 250
 
     private let loopCount = 9
-    /// One breathing frequency for all states — varying it would jump the sine's phase. States
-    /// differ by amplitude / baseline scale / glow instead.
-    private let breatheFreq: Double = 1.35
+    /// Two FIXED breathing frequencies. Blending their amplitudes per state changes the *feel* of
+    /// the motion without ever jumping the sine phase (which changing a frequency would):
+    ///   • slow  — the gentle overall breathe
+    ///   • fast  — a quicker flutter (used for "thinking / busy")
+    private let slowFreq: Double = 1.2
+    private let fastFreq: Double = 3.3
 
     // Smoothly-eased, state-driven outer modifiers.
     @State private var baseScale: CGFloat = 1.0
@@ -31,36 +34,44 @@ struct SwirlOrb: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            let rot = t * 0.06                                      // constant, slow — calm
-            let breathe = 1.0 + sin(t * breatheFreq) * breatheAmp   // continuous gentle breathe
+            let rot = t * 0.06                                       // constant, slow — calm
+            let breathe = 1.0 + sin(t * slowFreq) * ampSlow + sin(t * fastFreq) * ampFast
 
             core(rotation: rot)
                 .scaleEffect(breathe)
         }
-        .scaleEffect(baseScale)                                     // state contract / expand
-        .overlay(stateGlow)                                         // state brightening halo
+        .scaleEffect(baseScale)                                      // state contract / expand
+        .overlay(stateGlow)                                          // state brightening halo
         .onChange(of: mode) { _, newMode in apply(newMode) }
         .onAppear { apply(mode) }
     }
 
     // MARK: - Motion params (per state)
+    //  idle      — gentle slow breathe
+    //  listening — contract, nearly still, brighten (focused)
+    //  thinking  — small slow + noticeable FAST flutter (busy / working)
+    //  speaking  — big slow expand, brightest (talking)
 
-    private var breatheAmp: Double {
+    private var ampSlow: Double {
         switch mode {
-        case .idle:      return 0.020
-        case .listening: return 0.008   // nearly still — focused
-        case .thinking:  return 0.040   // deeper pulse — working
-        case .speaking:  return 0.055   // lively
+        case .idle: return 0.020; case .listening: return 0.006
+        case .thinking: return 0.014; case .speaking: return 0.060
+        }
+    }
+    private var ampFast: Double {
+        switch mode {
+        case .idle: return 0.0; case .listening: return 0.0
+        case .thinking: return 0.030; case .speaking: return 0.010
         }
     }
 
     private func apply(_ m: Mode) {
-        withAnimation(.easeInOut(duration: 0.55)) {
+        withAnimation(.easeInOut(duration: 0.5)) {
             switch m {
             case .idle:      baseScale = 1.00; glowOpacity = 0.00
-            case .listening: baseScale = 0.92; glowOpacity = 0.35   // tighten + brighten
-            case .thinking:  baseScale = 1.00; glowOpacity = 0.28
-            case .speaking:  baseScale = 1.06; glowOpacity = 0.50   // expand + brightest
+            case .listening: baseScale = 0.90; glowOpacity = 0.35   // tighten + brighten
+            case .thinking:  baseScale = 0.98; glowOpacity = 0.22
+            case .speaking:  baseScale = 1.09; glowOpacity = 0.55   // expand + brightest
             }
         }
     }
