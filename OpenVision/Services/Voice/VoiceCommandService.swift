@@ -476,7 +476,8 @@ final class VoiceCommandService: ObservableObject {
                 return
             }
 
-            if allowInterrupt && detectWakeWord(in: transcription, bypassCooldown: true) {
+            if allowInterrupt && detectWakeWord(in: transcription, bypassCooldown: true)
+                && wakeWordAtStart(transcription) {
                 print("[VoiceCommand] Wake word detected during TTS - interrupting")
 
                 // Notify to stop TTS immediately
@@ -519,6 +520,28 @@ final class VoiceCommandService: ObservableObject {
         if lower.contains("video") || lower.contains("stream") { return false }
         let stopWords = ["stop", "be quiet", "shut up", "silence", "quiet", "enough", "cancel"]
         return stopWords.contains { lower.contains($0) }
+    }
+
+    /// True when a wake-word variation sits at (or very near) the START of the transcript — i.e. a
+    /// deliberate "Ok Vision …" barge-in. During TTS the mic also hears the reply itself, whose
+    /// transcription can incidentally contain a "…vision…" buried mid-sentence; requiring the wake
+    /// word up front rejects those phantoms while still catching a real interrupt.
+    private func wakeWordAtStart(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let variations = [
+            wakeWord.lowercased(),
+            "ok vision", "okay vision", "o.k. vision", "o k vision",
+            "hey vision", "hi vision",
+            "a vision", "heavy vision", "have vision", "obey vision", "oak vision"
+        ]
+        for v in variations {
+            if let r = lower.range(of: v) {
+                // Characters of speech before the wake word. A little leeway ("uh, ok vision")
+                // is fine; a whole sentence in front of it means it's echo, not a barge-in.
+                if lower.distance(from: lower.startIndex, to: r.lowerBound) <= 12 { return true }
+            }
+        }
+        return false
     }
 
     /// Detect wake word in transcription
@@ -624,6 +647,13 @@ final class VoiceCommandService: ObservableObject {
 
         // Clear transcription to prevent re-sending the same command
         currentTranscription = ""
+
+        // Reset the recognizer's OWN buffer too. `currentTranscription = ""` only clears our copy;
+        // the live SFSpeechRecognitionResult keeps accumulating the whole utterance. Without this,
+        // the captured command ("…sun and the moon") lingers in the buffer during TTS, and a single
+        // misheard "Okay Vision" (from the reply audio / ambient) tacks onto it and false-fires the
+        // wake-word interrupt — cutting the reply off and flipping the UI back to "Listening".
+        restartRecognition()
 
         onCommandCaptured?(command)
     }
