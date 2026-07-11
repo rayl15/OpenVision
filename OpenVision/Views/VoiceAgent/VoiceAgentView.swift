@@ -1524,7 +1524,12 @@ struct VoiceAgentView: View {
             }
             ConversationContext.shared.record(user: command, assistant: text)
         }
-        agentState = isSessionActive ? .listening : .idle
+        // Generation finishes well before the voice does (several sentences stay queued in TTS).
+        // Don't stomp the state back to .listening while the reply is still being spoken — the
+        // TTS-finished observers handle that transition at the right moment.
+        if !ttsService.isSpeaking && !KokoroTTSService.shared.isSpeaking {
+            agentState = isSessionActive ? .listening : .idle
+        }
     }
 
     /// Carry out a face action (camera capture + Apple Vision), shared by the cloud-backend
