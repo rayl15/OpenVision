@@ -85,7 +85,10 @@ final class SettingsManager: ObservableObject {
     private func scheduleSave() {
         saveTask?.cancel()
         saveTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(self?.debounceInterval ?? 0.5 * 1_000_000_000))
+            // NOTE: was UInt64(debounceInterval) which is UInt64(0.5) == 0 — no delay. Multiply into
+            // nanoseconds first so the debounce actually coalesces rapid edits (e.g. typing a key).
+            let seconds = self?.debounceInterval ?? 0.5
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled else { return }
             await self?.performSave()
             self?.onSettingsChanged?(self?.settings ?? AppSettings())
@@ -105,21 +108,37 @@ final class SettingsManager: ObservableObject {
     }
 
     private static func loadSettings(from url: URL) -> AppSettings {
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        guard FileManager.default.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url) else {
             print("[SettingsManager] No settings file, using defaults")
             return createDefaultSettings()
         }
 
-        do {
-            let data = try Data(contentsOf: url)
-            let decoder = JSONDecoder()
-            let settings = try decoder.decode(AppSettings.self, from: data)
+        // Strict decode first — succeeds when every field is present.
+        if let settings = try? JSONDecoder().decode(AppSettings.self, from: data) {
             print("[SettingsManager] Loaded settings from file")
             return settings
-        } catch {
-            print("[SettingsManager] Error loading settings: \(error), using defaults")
-            return createDefaultSettings()
         }
+
+        // Lenient fallback. Synthesized Codable throws on ANY missing key, so a settings.json
+        // written by an older build (before a field was added) would otherwise reset EVERYTHING to
+        // defaults — silently wiping saved API keys. Instead, overlay the on-disk values onto the
+        // defaults' JSON (so present keys keep the user's value, missing keys fall back to default)
+        // and decode the merge. This makes adding new settings fields non-destructive.
+        let defaults = createDefaultSettings()
+        if let defaultsData = try? JSONEncoder().encode(defaults),
+           var merged = (try? JSONSerialization.jsonObject(with: defaultsData)) as? [String: Any],
+           let onDisk = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            for (key, value) in onDisk { merged[key] = value }   // on-disk value wins where present
+            if let mergedData = try? JSONSerialization.data(withJSONObject: merged),
+               let settings = try? JSONDecoder().decode(AppSettings.self, from: mergedData) {
+                print("[SettingsManager] Loaded settings via lenient merge (older file, missing fields filled)")
+                return settings
+            }
+        }
+
+        print("[SettingsManager] Could not decode settings even leniently — using defaults")
+        return defaults
     }
 
     private static func createDefaultSettings() -> AppSettings {
