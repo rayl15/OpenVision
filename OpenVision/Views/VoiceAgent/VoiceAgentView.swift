@@ -325,6 +325,16 @@ struct VoiceAgentView: View {
 
     // MARK: - Center Content
 
+    /// Map the agent state to the orb's visual mode.
+    private var orbMode: SwirlOrb.Mode {
+        switch agentState {
+        case .listening: return .listening
+        case .speaking: return .speaking
+        case .thinking, .toolRunning, .connecting: return .thinking
+        case .idle, .liveVideo: return .idle
+        }
+    }
+
     private var centerContent: some View {
         VStack(spacing: 28) {
             // Heading / status prompt
@@ -361,13 +371,8 @@ struct VoiceAgentView: View {
             .transition(.opacity)
 
             // The assistant identity: swirling emerald orb (tap to start/stop a session)
-            SwirlOrb(
-                isActive: agentState == .listening || agentState == .speaking,
-                isThinking: agentState == .thinking || agentState == .toolRunning,
-                intensity: audioLevel,
-                size: 250
-            )
-            .onTapGesture { toggleSession() }
+            SwirlOrb(mode: orbMode, size: 250)
+                .onTapGesture { toggleSession() }
 
             // Status text
             Text(agentState.displayText)
