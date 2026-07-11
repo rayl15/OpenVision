@@ -99,28 +99,25 @@ struct VoiceAgentView: View {
             ParticleEffect(particleCount: 30)
                 .opacity(0.5)
 
-            // Main content
+            // Main content — the orb stays vertically centered and STABLE. The transcript is a
+            // separate overlay (below) so it can never push the orb around.
             VStack(spacing: 0) {
-                // Top bar
                 topBar
                     .padding(.top, 8)
-
                 Spacer()
-
-                // Center: Visualizer and status
                 centerContent
-
                 Spacer()
+            }
 
-                // Transcript area
-                if settingsManager.settings.showTranscripts && (!userTranscript.isEmpty || !aiTranscript.isEmpty || agentState == .thinking) {
+            // Transcript floats over the bottom; growing text stays inside its own card and doesn't
+            // move the orb.
+            if settingsManager.settings.showTranscripts && (!userTranscript.isEmpty || !aiTranscript.isEmpty || agentState == .thinking) {
+                VStack {
+                    Spacer()
                     transcriptArea
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 28)
                 }
-
-                // Bottom controls
-                bottomControls
-                    .padding(.bottom, 32)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             // Error overlay
@@ -128,9 +125,12 @@ struct VoiceAgentView: View {
                 errorOverlay(error)
             }
         }
-        .animation(.spring(response: 0.4), value: agentState)
-        .animation(.spring(response: 0.4), value: userTranscript)
-        .animation(.spring(response: 0.4), value: aiTranscript)
+        // Animate the state text and the transcript's appear/disappear only — NOT every streamed
+        // token (the old .spring on userTranscript/aiTranscript sprang the whole view and jostled
+        // the orb on every word).
+        .animation(.easeInOut(duration: 0.3), value: agentState)
+        .animation(.easeInOut(duration: 0.35), value: userTranscript.isEmpty)
+        .animation(.easeInOut(duration: 0.35), value: aiTranscript.isEmpty)
         .onAppear {
             setupVoiceCommandService()
             setupGlassesCallbacks()
