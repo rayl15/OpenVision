@@ -503,10 +503,11 @@ final class VoiceCommandService: ObservableObject {
                 return
             }
 
-            // Check for barge-in (only if not paused - e.g., during TTS playback)
-            if !isBargeInPaused && detectSpeechStart(in: transcription) {
-                handleBargeIn()
-            }
+            // NOTE: no naive "any speech" barge-in here. detectSpeechStart is just `count > 3`, so
+            // during the processing→speaking window it fired on our OWN audio — the command echo
+            // (before TTS starts, when isBargeInPaused is still false) and the reply the mic hears
+            // back — flipping the UI to "Listening" mid-reply and tearing the session down. Deliberate
+            // interruption is handled above: "Ok Vision …" (wake word at start) or a stop phrase.
         }
     }
 
