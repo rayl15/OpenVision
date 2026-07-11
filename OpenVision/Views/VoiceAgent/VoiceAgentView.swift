@@ -589,6 +589,15 @@ struct VoiceAgentView: View {
     }
 
     private func configureAudioForGlasses() {
+        // If we're already on the glasses' Bluetooth (HFP) route and still listening, do NOT tear
+        // the audio session down and re-activate it. That re-activation renegotiates the HFP SCO
+        // link, which the glasses render as a "Bluetooth connecting/closing" blip — heard on every
+        // wake after the first (the route stays on HFP between sessions, so the re-config is pure
+        // churn). Skipping it keeps SCO stable, so the wake chime plays cleanly each time.
+        if settingsManager.settings.preferGlassesMic, glassesManager.isRegistered,
+           AudioSessionManager.shared.isBluetoothHFPActive, voiceCommandService.isListening {
+            return
+        }
         let wasListening = voiceCommandService.isListening
         if wasListening { voiceCommandService.stopListening() }
         applyPreferredAudioRoute()
