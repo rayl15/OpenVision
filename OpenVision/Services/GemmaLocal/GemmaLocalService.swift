@@ -243,10 +243,71 @@ final class GemmaLocalService: ObservableObject {
         }
     }
 
-    /// Apply every downloaded-config fixup (SmolVLM memory cap + FastVLM 1.5B processor class).
+    /// The FastViTHD vision encoder is identical across all FastVLM sizes (0.5B/1.5B/7B) — only the
+    /// language model scales. Some community MLX exports (e.g. FastVLM-1.5B-MLX-8bit) serialize an
+    /// EMPTY `vision_config: {}`, which makes mlx-swift-lm's decoder throw on the first missing field
+    /// (`vision_config.cls_ratio`). This is the reference FastViTHD config (from the working 0.5B
+    /// build) we inject when the export dropped it. `mm_vision_tower` is `mobileclip_l_1024` on both
+    /// sizes, confirming the encoder matches, so the injected config is correct.
+    nonisolated private static var fastViTHDVisionConfig: [String: Any] {
+        [
+            "cls_ratio": 2.0,
+            "down_patch_size": 7,
+            "down_stride": 2,
+            "downsamples": [true, true, true, true, true],
+            "embed_dims": [96, 192, 384, 768, 1536],
+            "hidden_size": 1024,
+            "image_size": 1024,
+            "intermediate_size": 3072,
+            "layer_scale_init_value": 1e-05,
+            "layers": [2, 12, 24, 4, 2],
+            "mlp_ratios": [4, 4, 4, 4, 4],
+            "num_classes": 1000,
+            "patch_size": 64,
+            "pos_embs_shapes": [NSNull(), NSNull(), NSNull(), [7, 7], [7, 7]],
+            "projection_dim": 768,
+            "repmixer_kernel_size": 3,
+            "token_mixers": ["repmixer", "repmixer", "repmixer", "attention", "attention"],
+        ]
+    }
+
+    /// Inject the FastViTHD `vision_config` into any FastVLM `config.json` whose export left it empty.
+    nonisolated private static func patchFastVLMConfigJSON() {
+        let fm = FileManager.default
+        for dir in [FileManager.SearchPathDirectory.cachesDirectory, .applicationSupportDirectory] {
+            guard let base = fm.urls(for: dir, in: .userDomainMask).first else { continue }
+            let hf = base.appendingPathComponent("huggingface", isDirectory: true)
+            guard let en = fm.enumerator(at: hf, includingPropertiesForKeys: nil) else { continue }
+            for case let url as URL in en
+            where url.lastPathComponent == "config.json"
+                && url.path.localizedCaseInsensitiveContains("fastvlm") {
+                injectFastVLMVisionConfig(at: url)
+            }
+        }
+    }
+
+    nonisolated private static func injectFastVLMVisionConfig(at url: URL) {
+        guard let data = try? Data(contentsOf: url),
+              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        // Only inject when it's actually missing — never clobber a config that already has it (0.5B).
+        let existing = json["vision_config"] as? [String: Any]
+        guard existing?["cls_ratio"] == nil else { return }
+        json["vision_config"] = fastViTHDVisionConfig
+        guard let out = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) else { return }
+        do {
+            try out.write(to: url)
+            NSLog("[OV] FastVLM config patched at %@: injected FastViTHD vision_config", url.path)
+        } catch {
+            NSLog("[OV] FastVLM config patch FAILED: %@", "\(error)")
+        }
+    }
+
+    /// Apply every downloaded-config fixup (SmolVLM memory cap + FastVLM processor class + FastVLM
+    /// empty vision_config).
     nonisolated private static func patchDownloadedVisionConfigs() {
         patchSmolVLMPreprocessorConfig()
         patchFastVLMProcessorConfig()
+        patchFastVLMConfigJSON()
     }
 
     // MARK: - Download (model manager)
@@ -257,12 +318,22 @@ final class GemmaLocalService: ObservableObject {
         // loadContainer fetches the snapshot if missing; reuse it as the download path.
         // Patch first in case a snapshot already exists — the config is read during load.
         Self.patchDownloadedVisionConfigs()
-        _ = try await loadModelContainer(modelId: model.modelId) { [weak self] p in
-            self?.downloadProgress = p
-            onProgress(p)
+        do {
+            _ = try await loadModelContainer(modelId: model.modelId) { [weak self] p in
+                self?.downloadProgress = p
+                onProgress(p)
+            }
+        } catch {
+            // A fresh snapshot's RAW config may be rejected before we can touch it (FastVLM 1.5B
+            // ships an empty vision_config). The files are on disk now, so patch and retry once —
+            // the existence-checked cache reuses them, so this is a re-parse, not a re-download.
+            NSLog("[OV] load failed (%@) — patching downloaded configs and retrying", "\(error)")
+            Self.patchDownloadedVisionConfigs()
+            _ = try await loadModelContainer(modelId: model.modelId) { [weak self] p in
+                self?.downloadProgress = p
+                onProgress(p)
+            }
         }
-        // Patch again for the fresh-download case (the load above read the stock config, but
-        // connect() re-patches before the container that actually serves requests is loaded).
         Self.patchDownloadedVisionConfigs()
         downloadProgress = 1
     }
@@ -308,8 +379,18 @@ final class GemmaLocalService: ObservableObject {
 
         do {
             print("[GemmaLocal] loading container…")
-            let container = try await loadModelContainer(modelId: modelId) { [weak self] p in
-                self?.downloadProgress = p
+            let container: ModelContainer
+            do {
+                container = try await loadModelContainer(modelId: modelId) { [weak self] p in
+                    self?.downloadProgress = p
+                }
+            } catch {
+                // Retry once after re-patching (covers a snapshot whose config wasn't patched yet).
+                NSLog("[OV] connect load failed (%@) — re-patching and retrying", "\(error)")
+                Self.patchDownloadedVisionConfigs()
+                container = try await loadModelContainer(modelId: modelId) { [weak self] p in
+                    self?.downloadProgress = p
+                }
             }
             modelContainer = container
             loadedModelId = modelId
