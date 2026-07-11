@@ -1300,12 +1300,14 @@ struct VoiceAgentView: View {
         ttsService.speak("Live video mode active, on device")
     }
 
-    /// Answer a spoken question in local live video mode: latest glasses frame + question → SmolVLM2.
+    /// Answer a spoken question in local live video mode using a fresh, settled glasses frame.
     private func handleLocalLiveVideoCommand(_ command: String) async {
         agentState = .thinking
-        guard let frame = glassesManager.lastFrame,
+        // Let head motion settle and grab the freshest frame, so we describe the CURRENT view
+        // rather than a stale/motion-blurred one the Bluetooth stream delivered a beat ago.
+        guard let frame = await freshestGlassesFrame(settle: 0.3, maxWait: 1.0),
               let jpeg = frame.jpegData(compressionQuality: 0.6) else {
-            speakResponse("I don't have a camera frame yet — give it a second.")
+            speakResponse("I couldn't get a clear view just now — hold still a second and ask again.")
             agentState = .liveVideo
             return
         }
@@ -1318,6 +1320,24 @@ struct VoiceAgentView: View {
             speakResponse("Sorry, that didn't work. \(error.localizedDescription)")
         }
         if isLiveVideoMode { agentState = .liveVideo }
+    }
+
+    /// Wait a brief `settle` for head motion to stop, then return the freshest camera frame that's
+    /// genuinely recent (stream not stalled). Falls back to whatever frame we have after `maxWait`.
+    /// This is the "current view, not a stale glimpse" grab for live video.
+    private func freshestGlassesFrame(settle: TimeInterval, maxWait: TimeInterval) async -> UIImage? {
+        try? await Task.sleep(nanoseconds: UInt64(settle * 1_000_000_000))
+        let deadline = Date().addingTimeInterval(maxWait)
+        while Date() < deadline {
+            // Accept only a frame received within the last 500ms — under heavy motion the BT stream
+            // throttles and lastFrame goes stale; wait for a fresh one instead of describing it.
+            if Date().timeIntervalSince(glassesManager.lastFrameTime) < 0.5,
+               let f = glassesManager.lastFrame {
+                return f
+            }
+            try? await Task.sleep(nanoseconds: 80_000_000)   // 80ms poll
+        }
+        return glassesManager.lastFrame   // fallback: better an old frame than nothing
     }
 
     /// Stop live video mode - return to OpenClaw

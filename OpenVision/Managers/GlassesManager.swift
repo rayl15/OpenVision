@@ -30,6 +30,10 @@ final class GlassesManager: ObservableObject {
     /// Last captured video frame
     @Published var lastFrame: UIImage?
 
+    /// When `lastFrame` was received. Lets the live loop tell a fresh frame from a stale one when
+    /// the Bluetooth stream throttles under head motion (so it doesn't describe an old view).
+    private(set) var lastFrameTime: Date = .distantPast
+
     /// Last captured photo data
     @Published var lastPhotoData: Data?
 
@@ -197,6 +201,7 @@ final class GlassesManager: ObservableObject {
         streamSession = nil
         isStreaming = false
         lastFrame = nil
+        lastFrameTime = .distantPast
 
         print("[GlassesManager] Streaming stopped")
     }
@@ -268,6 +273,7 @@ final class GlassesManager: ObservableObject {
             Task { @MainActor in
                 if let image = frame.makeUIImage() {
                     self?.lastFrame = image
+                    self?.lastFrameTime = Date()
                     self?.onVideoFrame?(image)
                 }
             }

@@ -387,7 +387,14 @@ final class GemmaLocalService: ObservableObject {
 
         // Keep replies short — this is spoken aloud on glasses, so long answers get tiresome
         // (and the TTS cuts off after ~a minute). Aim for a couple of natural sentences.
-        let brevity = "You are a hands-free voice assistant for smart glasses. Reply in 2–4 natural sentences — enough detail to be genuinely useful and give a real sense of things, but brief enough to hear comfortably (around 20–30 seconds). Be specific and concrete, not vague. No lists, no markdown, no preamble; just answer."
+        var brevity = "You are a hands-free voice assistant for smart glasses. Reply in 2–4 natural sentences — enough detail to be genuinely useful and give a real sense of things, but brief enough to hear comfortably (around 20–30 seconds). Be specific and concrete, not vague. No lists, no markdown, no preamble; just answer."
+        // Hallucination defense: SmolVLM confidently invents details it can't see (research puts
+        // its "describe a thing that isn't there" rate near 94%, dropping to ~22% with a grounding
+        // prompt). Anchor it to THIS frame and let it admit uncertainty rather than guess — this is
+        // what stops the live feed from narrating stale/blurry glimpses when the head is moving.
+        if visionImage != nil {
+            brevity += " You are looking through the glasses camera right now. Describe ONLY what is clearly and currently visible in this exact image. If it's blurry, dark, partly out of frame, or you're not certain what something is, say so briefly instead of guessing — never mention objects you aren't confident are actually present."
+        }
         let userSys = SettingsManager.shared.settings.userPrompt
         let systemContent = userSys.isEmpty ? brevity : "\(userSys)\n\n\(brevity)"
 
