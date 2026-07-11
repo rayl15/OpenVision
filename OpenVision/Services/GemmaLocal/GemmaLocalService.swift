@@ -350,22 +350,19 @@ final class GemmaLocalService: ObservableObject {
 
         // loadContainer fetches the snapshot if missing; reuse it as the download path.
         // Patch first in case a snapshot already exists — the config is read during load.
+        // The hub's own progress callback is deliberately NOT fed into downloadProgress: it emits
+        // a fresh 0→1 fraction per FILE, which made the bar thrash between 1% and 99%. The byte
+        // poller above is the single writer until completion.
         Self.patchDownloadedVisionConfigs()
         do {
-            _ = try await loadModelContainer(modelId: model.modelId) { [weak self] p in
-                self?.bumpDownloadProgress(p)
-                onProgress(p)
-            }
+            _ = try await loadModelContainer(modelId: model.modelId) { p in onProgress(p) }
         } catch {
             // A fresh snapshot's RAW config may be rejected before we can touch it (FastVLM 1.5B
             // ships an empty vision_config). The files are on disk now, so patch and retry once —
             // the existence-checked cache reuses them, so this is a re-parse, not a re-download.
             NSLog("[OV] load failed (%@) — patching downloaded configs and retrying", "\(error)")
             Self.patchDownloadedVisionConfigs()
-            _ = try await loadModelContainer(modelId: model.modelId) { [weak self] p in
-                self?.bumpDownloadProgress(p)
-                onProgress(p)
-            }
+            _ = try await loadModelContainer(modelId: model.modelId) { p in onProgress(p) }
         }
         Self.patchDownloadedVisionConfigs()
         downloadProgress = 1
@@ -414,16 +411,15 @@ final class GemmaLocalService: ObservableObject {
             print("[GemmaLocal] loading container…")
             let container: ModelContainer
             do {
-                container = try await loadModelContainer(modelId: modelId) { [weak self] p in
-                    self?.downloadProgress = p
-                }
+                // NOTE: don't write downloadProgress here — connect() can run concurrently with a
+                // download() (wake word stays live behind Settings), and the hub emits a fresh
+                // 0→1 progress per FILE, so a second writer makes the download bar thrash.
+                container = try await loadModelContainer(modelId: modelId) { _ in }
             } catch {
                 // Retry once after re-patching (covers a snapshot whose config wasn't patched yet).
                 NSLog("[OV] connect load failed (%@) — re-patching and retrying", "\(error)")
                 Self.patchDownloadedVisionConfigs()
-                container = try await loadModelContainer(modelId: modelId) { [weak self] p in
-                    self?.downloadProgress = p
-                }
+                container = try await loadModelContainer(modelId: modelId) { _ in }
             }
             modelContainer = container
             loadedModelId = modelId
