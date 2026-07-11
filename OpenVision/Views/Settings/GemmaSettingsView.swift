@@ -24,6 +24,16 @@ struct GemmaSettingsView: View {
                 ForEach(GemmaLocalModel.allCases) { model in
                     Button {
                         selectedModel = model
+                        refreshSize()
+                        // If this model is already on disk, make it the ACTIVE local model right
+                        // away. The setting used to persist only after a fresh download, so
+                        // switching between already-downloaded models never took effect — the
+                        // home screen (and the backend) stayed on the previous model.
+                        if GemmaLocalService.downloadedSizeBytes(for: model.modelId) > 0 {
+                            settingsManager.settings.localGemmaModelId = model.modelId
+                            settingsManager.settings.localGemmaModelReady = true
+                            settingsManager.saveNow()
+                        }
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -75,7 +85,7 @@ struct GemmaSettingsView: View {
                 Text("Download")
             } footer: {
                 if settingsManager.settings.isLocalGemmaConfigured {
-                    Label("Model ready — select “Local (Gemma 4)” as your backend.", systemImage: "checkmark.seal.fill")
+                    Label("Model ready — select “Local (MLX)” as your backend.", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                 } else {
                     Text("The first download is several GB — keep the app open and use Wi-Fi.")
@@ -101,7 +111,7 @@ struct GemmaSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Local Gemma")
+        .navigationTitle("Local Models")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             selectedModel = GemmaLocalModel.from(modelId: settingsManager.settings.localGemmaModelId)

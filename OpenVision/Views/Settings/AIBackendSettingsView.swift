@@ -92,7 +92,7 @@ struct AIBackendSettingsView: View {
                     GemmaSettingsView()
                 } label: {
                     HStack {
-                        Label("Local Gemma", systemImage: "cpu")
+                        Label("Local Models", systemImage: "cpu")
                         Spacer()
                         configurationBadge(configured: settingsManager.settings.isLocalGemmaConfigured)
                     }
