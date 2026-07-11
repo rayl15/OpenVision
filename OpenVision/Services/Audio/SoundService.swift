@@ -1,7 +1,13 @@
 // OpenVision - SoundService.swift
-// Service for playing UI sound effects using System Sounds (no audio session interference)
+// Service for playing UI sound effects.
+//
+// The wake-word "I'm listening" chime plays via AVAudioPlayer on the app's active audio session,
+// so it follows the current route — crucially the glasses' Bluetooth (HFP) speaker when they're
+// connected. System sounds (AudioServicesPlaySystemSound) always go to the phone speaker, so with
+// the phone in a pocket you'd hear nothing on the glasses — which is why the chime was silent.
 
 import AudioToolbox
+import AVFoundation
 import Foundation
 
 /// Service for playing UI sound effects
@@ -10,6 +16,11 @@ final class SoundService: ObservableObject {
     // MARK: - Singleton
 
     static let shared = SoundService()
+
+    // MARK: - Players
+
+    /// AVAudioPlayer so the wake-word chime routes to the active output (the glasses when connected).
+    private var wakeWordPlayer: AVAudioPlayer?
 
     // MARK: - System Sound IDs
 
@@ -49,12 +60,16 @@ final class SoundService: ObservableObject {
         guard !hasSetupSounds else { return }
         hasSetupSounds = true
 
-        // Wake word ding sound
-        if let url = Bundle.main.url(forResource: "wake_word_ding", withExtension: "mp3") {
-            AudioServicesCreateSystemSoundID(url as CFURL, &wakeWordSoundID)
+        // Wake-word "listening" chime — via AVAudioPlayer so it follows the active route (glasses).
+        // Falls back to the older ding file if the new asset isn't present.
+        let wakeURL = Bundle.main.url(forResource: "wake_activation", withExtension: "mp3")
+            ?? Bundle.main.url(forResource: "wake_word_ding", withExtension: "mp3")
+        if let wakeURL {
+            wakeWordPlayer = try? AVAudioPlayer(contentsOf: wakeURL)
+            wakeWordPlayer?.prepareToPlay()
         }
 
-        // Thinking loop sound
+        // Thinking loop sound (stays a system sound — ambient, phone-side is fine)
         if let url = Bundle.main.url(forResource: "thinking_loop", withExtension: "mp3") {
             AudioServicesCreateSystemSoundID(url as CFURL, &thinkingSoundID)
         }
@@ -66,8 +81,14 @@ final class SoundService: ObservableObject {
         guard soundEnabled else { return }
         ensureSoundsReady()
 
-        if wakeWordSoundID != 0 {
-            AudioServicesPlaySystemSound(wakeWordSoundID)
+        // Play on the app's audio session so it routes to the glasses (HFP) when connected.
+        // The wake-word recognizer keeps a .playAndRecord session active, so the current output
+        // route is already correct — just restart the player from the top and play.
+        if let player = wakeWordPlayer {
+            player.currentTime = 0
+            player.play()
+        } else if wakeWordSoundID != 0 {
+            AudioServicesPlaySystemSound(wakeWordSoundID)   // fallback
         }
     }
 
