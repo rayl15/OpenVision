@@ -74,9 +74,10 @@ struct MainTabView: View {
             appearance.stackedLayoutAppearance.normal.iconColor = .gray
             appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.gray]
 
-            // Selected state
-            appearance.stackedLayoutAppearance.selected.iconColor = .systemBlue
-            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor.systemBlue]
+            // Selected state — emerald accent (matches Theme.accent)
+            let accent = UIColor(red: 0.16, green: 0.85, blue: 0.47, alpha: 1)
+            appearance.stackedLayoutAppearance.selected.iconColor = accent
+            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: accent]
 
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
