@@ -1,159 +1,104 @@
 // OpenVision - TranscriptBubble.swift
-// Beautiful message bubbles for transcripts
+// Emerald-themed transcript bubbles: user = solid emerald (right), AI = frosted glass (left).
+// Bubbles float directly over the background — no outer card box.
 
 import SwiftUI
 
-/// Animated typing indicator
+/// Animated typing indicator (three pulsing emerald dots).
 struct TypingIndicator: View {
-    @State private var animationOffset: CGFloat = 0
+    @State private var animating = false
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .fill(Color.white.opacity(0.6))
-                    .frame(width: 8, height: 8)
-                    .offset(y: animationOffset(for: index))
+                    .fill(Theme.accent)
+                    .frame(width: 7, height: 7)
+                    .opacity(animating ? 1.0 : 0.25)
+                    .animation(
+                        .easeInOut(duration: 0.5)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.18),
+                        value: animating
+                    )
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
             Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
+                .fill(Theme.glass)
+                .overlay(Capsule().stroke(Theme.bgElevatedStroke, lineWidth: 1))
         )
-        .onAppear {
-            withAnimation(
-                .easeInOut(duration: 0.6)
-                .repeatForever(autoreverses: true)
-            ) {
-                animationOffset = -8
-            }
-        }
-    }
-
-    private func animationOffset(for index: Int) -> CGFloat {
-        let delay = Double(index) * 0.15
-        return animationOffset * cos(delay * .pi)
+        .onAppear { animating = true }
     }
 }
 
-/// Transcript bubble for user or AI messages
+/// One transcript bubble. The text renders live (the token stream already animates it) —
+/// no artificial per-character typing effect.
 struct TranscriptBubble: View {
     let text: String
     let isUser: Bool
     let isStreaming: Bool
 
-    @State private var displayedText: String = ""
-    @State private var streamingIndex: Int = 0
-
     var body: some View {
         HStack {
-            if isUser { Spacer(minLength: 60) }
+            if isUser { Spacer(minLength: 48) }
 
-            VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                // Label
-                Text(isUser ? "You" : "AI")
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 5) {
+                Text(isUser ? "You" : "Vision")
                     .font(.caption2)
                     .fontWeight(.semibold)
-                    .foregroundColor(isUser ? .blue.opacity(0.8) : .purple.opacity(0.8))
+                    .foregroundColor(isUser ? Theme.accent.opacity(0.9) : Theme.heading.opacity(0.85))
                     .textCase(.uppercase)
-                    .tracking(1)
+                    .tracking(1.2)
 
-                // Message bubble
-                Text(isStreaming ? displayedText : text)
-                    .font(.body)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(
-                        ZStack {
-                            // Gradient background
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(
-                                    LinearGradient(
-                                        colors: isUser ? [
-                                            Color.blue.opacity(0.6),
-                                            Color.blue.opacity(0.4)
-                                        ] : [
-                                            Color.purple.opacity(0.4),
-                                            Color.purple.opacity(0.2)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-
-                            // Glass overlay
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(.ultraThinMaterial.opacity(0.3))
-
-                            // Border
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(
-                                    Color.white.opacity(isUser ? 0.3 : 0.15),
-                                    lineWidth: 1
-                                )
-                        }
-                    )
-                    .shadow(color: (isUser ? Color.blue : Color.purple).opacity(0.2), radius: 10)
+                Text(text)
+                    .font(.callout)
+                    .foregroundColor(isUser ? Color.black.opacity(0.9) : Theme.textPrimary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(bubbleBackground)
             }
 
-            if !isUser { Spacer(minLength: 60) }
-        }
-        .onAppear {
-            if isStreaming {
-                startStreaming()
-            }
-        }
-        .onChange(of: text) { newText in
-            if isStreaming {
-                streamNewText(newText)
-            }
+            if !isUser { Spacer(minLength: 48) }
         }
     }
 
-    private func startStreaming() {
-        displayedText = ""
-        streamingIndex = 0
-        streamCharacter()
-    }
-
-    private func streamCharacter() {
-        guard streamingIndex < text.count else { return }
-
-        let index = text.index(text.startIndex, offsetBy: streamingIndex)
-        displayedText.append(text[index])
-        streamingIndex += 1
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            streamCharacter()
-        }
-    }
-
-    private func streamNewText(_ newText: String) {
-        // Append new characters
-        let newChars = String(newText.dropFirst(displayedText.count))
-        for char in newChars {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(displayedText.count) * 0.01) {
-                displayedText.append(char)
-            }
+    @ViewBuilder
+    private var bubbleBackground: some View {
+        if isUser {
+            // Solid emerald — the signature accent, black text on green like the reference CTAs.
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Theme.buttonGradient)
+                .shadow(color: Theme.accent.opacity(0.35), radius: 12, y: 2)
+        } else {
+            // Frosted near-black glass with a faint emerald edge.
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Theme.bgElevated.opacity(0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Theme.accent.opacity(0.35), Theme.bgElevatedStroke],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
         }
     }
 }
 
-/// Transcript view showing conversation
+/// The conversation transcript: user bubble, then the AI reply. Long replies scroll inside a
+/// bounded area and auto-follow the newest text while streaming.
 struct TranscriptView: View {
     let userText: String
     let aiText: String
     let isAIStreaming: Bool
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 10) {
             if !userText.isEmpty {
                 TranscriptBubble(text: userText, isUser: true, isStreaming: false)
                     .transition(.asymmetric(
@@ -163,11 +108,24 @@ struct TranscriptView: View {
             }
 
             if !aiText.isEmpty {
-                TranscriptBubble(text: aiText, isUser: false, isStreaming: isAIStreaming)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .leading).combined(with: .opacity),
-                        removal: .opacity
-                    ))
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        TranscriptBubble(text: aiText, isUser: false, isStreaming: isAIStreaming)
+                            .id("reply")
+                    }
+                    .frame(maxHeight: 190)
+                    .fixedSize(horizontal: false, vertical: aiFitsWithoutScrolling)
+                    .onChange(of: aiText) { _ in
+                        // Follow the newest text as it streams in.
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo("reply", anchor: .bottom)
+                        }
+                    }
+                }
+                .transition(.asymmetric(
+                    insertion: .move(edge: .leading).combined(with: .opacity),
+                    removal: .opacity
+                ))
             } else if isAIStreaming {
                 HStack {
                     TypingIndicator()
@@ -176,9 +134,13 @@ struct TranscriptView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: userText)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: aiText)
+        // Animate bubble appear/disappear only — not every streamed token.
+        .animation(.easeInOut(duration: 0.3), value: userText.isEmpty)
+        .animation(.easeInOut(duration: 0.3), value: aiText.isEmpty)
     }
+
+    /// Short replies size to content (no dead space); long ones cap at maxHeight and scroll.
+    private var aiFitsWithoutScrolling: Bool { aiText.count < 220 }
 }
 
 /// Tool status indicator
@@ -186,15 +148,11 @@ struct ToolStatusView: View {
     let toolName: String
     let isRunning: Bool
 
-    @State private var rotation: Double = 0
-
     var body: some View {
         HStack(spacing: 8) {
-            // Animated icon
             Image(systemName: "wrench.and.screwdriver.fill")
                 .font(.subheadline)
-                .foregroundColor(.orange)
-                .rotationEffect(.degrees(isRunning ? rotation : 0))
+                .foregroundColor(Theme.accent)
 
             Text(toolName)
                 .font(.subheadline)
@@ -203,36 +161,23 @@ struct ToolStatusView: View {
             if isRunning {
                 ProgressView()
                     .scaleEffect(0.7)
-                    .tint(.orange)
+                    .tint(Theme.accent)
             }
         }
-        .foregroundColor(.white)
+        .foregroundColor(Theme.textPrimary)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(
             Capsule()
-                .fill(Color.orange.opacity(0.2))
-                .overlay(
-                    Capsule()
-                        .stroke(Color.orange.opacity(0.4), lineWidth: 1)
-                )
+                .fill(Theme.accent.opacity(0.15))
+                .overlay(Capsule().stroke(Theme.accent.opacity(0.4), lineWidth: 1))
         )
-        .onAppear {
-            if isRunning {
-                withAnimation(
-                    .linear(duration: 2)
-                    .repeatForever(autoreverses: false)
-                ) {
-                    rotation = 360
-                }
-            }
-        }
     }
 }
 
 #Preview {
     ZStack {
-        Color.black.ignoresSafeArea()
+        Theme.bg.ignoresSafeArea()
 
         VStack(spacing: 24) {
             TranscriptView(

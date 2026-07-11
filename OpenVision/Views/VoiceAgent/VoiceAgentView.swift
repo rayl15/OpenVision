@@ -388,19 +388,15 @@ struct VoiceAgentView: View {
 
     // MARK: - Transcript Area
 
+    // Bubbles float directly over the background (no outer card box — the old GlassCard wrapper
+    // was a mostly-empty gray slab).
     private var transcriptArea: some View {
-        GlassCard(cornerRadius: 24, opacity: 0.1) {
-            VStack(spacing: 16) {
-                TranscriptView(
-                    userText: userTranscript,
-                    aiText: aiTranscript,
-                    isAIStreaming: agentState == .speaking
-                )
-            }
-            .padding(20)
-        }
-        .padding(.horizontal)
-        .frame(maxHeight: 200)
+        TranscriptView(
+            userText: userTranscript,
+            aiText: aiTranscript,
+            isAIStreaming: agentState == .speaking
+        )
+        .padding(.horizontal, 20)
     }
 
     // MARK: - Bottom Controls
