@@ -136,7 +136,7 @@ struct VoiceSelectionView: View {
                             .scaleEffect(0.8)
                     } else {
                         Image(systemName: "play.circle")
-                            .foregroundColor(.blue)
+                            .foregroundColor(Theme.accent)
                     }
                 }
                 .buttonStyle(.plain)
@@ -144,7 +144,7 @@ struct VoiceSelectionView: View {
 
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .foregroundColor(.blue)
+                        .foregroundColor(Theme.accent)
                         .fontWeight(.semibold)
                 }
             }

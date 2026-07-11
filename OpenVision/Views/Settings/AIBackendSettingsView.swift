@@ -20,7 +20,7 @@ struct AIBackendSettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: backend.icon)
-                                .foregroundColor(.blue)
+                                .foregroundColor(Theme.accent)
                                 .frame(width: 24)
 
                             VStack(alignment: .leading, spacing: 2) {
@@ -35,7 +35,7 @@ struct AIBackendSettingsView: View {
 
                             if settingsManager.settings.aiBackend == backend {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(Theme.accent)
                             }
                         }
                     }

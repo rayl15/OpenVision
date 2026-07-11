@@ -173,7 +173,8 @@ struct MessageBubble: View {
 
     var body: some View {
         HStack {
-            if message.role == .assistant {
+            // User on the right, assistant on the left — same as the live transcript.
+            if message.role == .user {
                 Spacer(minLength: 40)
             }
 
@@ -181,8 +182,8 @@ struct MessageBubble: View {
                 Text(message.content)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(message.role == .user ? Color.blue : Color(.systemGray5))
-                    .foregroundColor(message.role == .user ? .white : .primary)
+                    .background(message.role == .user ? AnyShapeStyle(Theme.buttonGradient) : AnyShapeStyle(Color(.systemGray5)))
+                    .foregroundColor(message.role == .user ? Color.black.opacity(0.9) : .primary)
                     .cornerRadius(16)
 
                 Text(message.timestamp.formatted(date: .omitted, time: .shortened))
@@ -190,7 +191,7 @@ struct MessageBubble: View {
                     .foregroundColor(.secondary)
             }
 
-            if message.role == .user {
+            if message.role == .assistant {
                 Spacer(minLength: 40)
             }
         }
