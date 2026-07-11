@@ -50,6 +50,15 @@ enum Theme {
         )
     }
 
+    /// Per-loop stroke: one side bright, the other fading — gives each ellipse depth so the
+    /// overlapping rosette reads as a woven 3D torus of light rather than flat rings.
+    static var loopGradient: LinearGradient {
+        LinearGradient(
+            colors: [accentBright, glow, accent.opacity(0.35)],
+            startPoint: .leading, endPoint: .trailing
+        )
+    }
+
     /// Ambient radial glow used behind the orb / at screen top.
     static func glowGradient(_ opacity: Double = 0.9) -> RadialGradient {
         RadialGradient(
