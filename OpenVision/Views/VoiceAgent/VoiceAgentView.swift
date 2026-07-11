@@ -660,6 +660,37 @@ struct VoiceAgentView: View {
         isLiveVideoMode = false
     }
 
+    /// Full stop for "Ok Vision stop": silence all output, cancel any in-flight generation, and go
+    /// quiet back to wake-word listening. The recognizer buffer is already reset by
+    /// VoiceCommandService (so the stale transcript can't re-fire); here we just halt + end the turn.
+    private func performFullStop() {
+        ttsService.stop()
+        KokoroTTSService.shared.stop()
+        audioPlayback.stop()
+        ttsStreaming = false
+
+        Task {
+            switch settingsManager.settings.aiBackend {
+            case .openClaw: await OpenClawService.shared.interrupt()
+            case .geminiLive: await GeminiLiveService.shared.interrupt()
+            case .openAI: break   // single request/response — nothing to interrupt
+            case .appleFoundation: AppleFoundationService.shared.interrupt()
+            case .localGemma: GemmaLocalService.shared.interrupt()
+            }
+        }
+
+        if isLiveVideoMode {
+            Task { await stopLiveVideoMode() }
+        }
+
+        // Go quiet: end the turn, return to wake-word idle. Say "Ok Vision" to start again.
+        userTranscript = ""
+        aiTranscript = ""
+        currentToolName = nil
+        isSessionActive = false
+        agentState = .idle
+    }
+
     private func capturePhoto() {
         Task {
             if glassesManager.isStreaming {
@@ -738,6 +769,13 @@ struct VoiceAgentView: View {
                     self.startSession()
                 }
             }
+        }
+
+        // "Ok Vision stop" during a reply → full stop, go quiet (the recognizer is already reset
+        // to wake-word idle by VoiceCommandService; here we just halt output + end the turn).
+        voiceCommandService.onStopCommand = {
+            print("[VoiceAgentView] Full stop requested")
+            self.performFullStop()
         }
 
         // Command captured
@@ -978,30 +1016,8 @@ struct VoiceAgentView: View {
                            !lowerCommand.contains("video") && !lowerCommand.contains("stream")
 
         if isStopCommand {
-            print("[VoiceAgentView] Stop command detected - stopping TTS")
-            // Stop TTS
-            ttsService.stop()
-            KokoroTTSService.shared.stop()
-            // Stop audio playback (for Gemini Live)
-            audioPlayback.stop()
-            // Interrupt AI if processing
-            Task {
-                switch settingsManager.settings.aiBackend {
-                case .openClaw:
-                    await OpenClawService.shared.interrupt()
-                case .geminiLive:
-                    await GeminiLiveService.shared.interrupt()
-                case .openAI:
-                    break   // single request/response — nothing to interrupt
-                case .appleFoundation:
-                    AppleFoundationService.shared.interrupt()
-                case .localGemma:
-                    GemmaLocalService.shared.interrupt()
-                }
-            }
-            // Stay in listening mode
-            agentState = .listening
-            aiTranscript = ""
+            print("[VoiceAgentView] Stop command detected - full stop")
+            performFullStop()
             return
         }
 

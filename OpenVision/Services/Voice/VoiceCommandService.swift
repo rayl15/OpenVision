@@ -61,6 +61,10 @@ final class VoiceCommandService: ObservableObject {
     /// Called when wake word is detected
     var onWakeWordDetected: (() -> Void)?
 
+    /// Called when the user says a stop phrase ("stop", "ok vision stop") during TTS/processing.
+    /// The app should halt everything and go quiet; the recognizer is reset to wake-word idle here.
+    var onStopCommand: (() -> Void)?
+
     /// Called when a command is captured
     var onCommandCaptured: ((String) -> Void)?
 
@@ -456,6 +460,22 @@ final class VoiceCommandService: ObservableObject {
         case .processing:
             // Check for wake word to interrupt TTS (e.g., "ok vision stop")
             let allowInterrupt = shouldAllowInterrupt?() ?? false
+
+            // "Ok Vision stop" / "stop" during TTS → FULL STOP. Handle this before the general
+            // barge-in: halt everything and go quiet. Critically, reset recognition to clear the
+            // buffer — the transcript still starts with "ok vision", so without a reset it would
+            // re-match this branch on every partial result and churn listening/processing forever.
+            if allowInterrupt && isStopPhrase(transcription) {
+                print("[VoiceCommand] Stop phrase during TTS — halting")
+                onStopCommand?()
+                currentTranscription = ""
+                hasSpokenThisTurn = false
+                silenceTimer?.invalidate(); silenceTimer = nil
+                state = isWakeWordEnabled ? .idle : .listening
+                restartRecognition()   // clear the stale "ok vision ... stop" buffer
+                return
+            }
+
             if allowInterrupt && detectWakeWord(in: transcription, bypassCooldown: true) {
                 print("[VoiceCommand] Wake word detected during TTS - interrupting")
 
@@ -487,6 +507,18 @@ final class VoiceCommandService: ObservableObject {
                 handleBargeIn()
             }
         }
+    }
+
+    /// True when the user asked to stop during TTS: the transcript contains BOTH the wake word and
+    /// a stop word. Requiring the wake word means the TTS reply's own words (which the mic hears
+    /// through the glasses) can't false-trigger a stop. Excludes "stop video/stream" — that's a
+    /// live-video command handled elsewhere.
+    private func isStopPhrase(_ text: String) -> Bool {
+        guard detectWakeWord(in: text, bypassCooldown: true) else { return false }
+        let lower = text.lowercased()
+        if lower.contains("video") || lower.contains("stream") { return false }
+        let stopWords = ["stop", "be quiet", "shut up", "silence", "quiet", "enough", "cancel"]
+        return stopWords.contains { lower.contains($0) }
     }
 
     /// Detect wake word in transcription
