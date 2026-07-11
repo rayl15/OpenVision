@@ -478,25 +478,30 @@ final class VoiceCommandService: ObservableObject {
 
             if allowInterrupt && detectWakeWord(in: transcription, bypassCooldown: true)
                 && wakeWordAtStart(transcription) {
-                print("[VoiceCommand] Wake word detected during TTS - interrupting")
+                // A BARE "Ok Vision" with nothing after it, mid-reply, is almost always the mic
+                // hallucinating the wake word from the reply audio the speaker is playing (echo) —
+                // NOT a deliberate interrupt. Real interrupts carry a follow-up ("Ok Vision, what
+                // about Mars?"). Require that command; otherwise ignore and let the reply finish.
+                // (To simply silence a reply, "Ok Vision stop" is handled by the stop-phrase branch
+                // above.)
+                let command = extractCommandAfterWakeWord(transcription)
+                guard !command.isEmpty else { return }
+
+                print("[VoiceCommand] Wake word + command during TTS - interrupting: '\(command)'")
 
                 // Notify to stop TTS immediately
                 onWakeWordDetected?()
 
-                // Extract command after wake word
-                let command = extractCommandAfterWakeWord(transcription)
-                print("[VoiceCommand] Extracted command: '\(command)'")
-
                 // Switch to listening mode - like xmeta's isCapturingCommand = true
                 state = .listening
                 currentTranscription = command
-                hasSpokenThisTurn = !command.isEmpty
+                hasSpokenThisTurn = true
 
                 // Start silence timer to wait for user to finish speaking
                 resetSilenceTimer()
 
-                // If result is already final and we have a command, process it
-                if result.isFinal && !command.isEmpty {
+                // If result is already final, process it
+                if result.isFinal {
                     print("[VoiceCommand] Result is final, processing command immediately")
                     handleCommandComplete(command)
                 }
