@@ -35,7 +35,9 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
     case e2b             // Gemma 4 E2B — vision-capable, heaviest
     case smolVLM2_2B     // SmolVLM2 2.2B — lighter vision model
     case fastVLM05B      // Apple FastVLM 0.5B — fastest vision, real-time
-    case fastVLM15B      // Apple FastVLM 1.5B — stronger vision, still fast
+    // NOTE: FastVLM 1.5B is intentionally absent — no public MLX checkpoint loads in mlx-swift-lm
+    // (the community conversions ship non-reparameterized FastViTHD weights that fail key lookup).
+    // The config-injection + retry infra below is kept for when a correct 1.5B conversion exists.
 
     var id: String { rawValue }
 
@@ -47,7 +49,6 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
         case .e2b: return "Gemma 4 E2B"
         case .smolVLM2_2B: return "SmolVLM2 2.2B"
         case .fastVLM05B: return "FastVLM 0.5B"
-        case .fastVLM15B: return "FastVLM 1.5B"
         }
     }
 
@@ -63,7 +64,6 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
         // build (config matches out of the box); the 1.5B community 8-bit needs its
         // preprocessor_config's processor_class patched to FastVLMProcessor (see patch on load).
         case .fastVLM05B: return "mlx-community/FastVLM-0.5B-bf16"
-        case .fastVLM15B: return "InsightKeeper/FastVLM-1.5B-MLX-8bit"
         }
     }
 
@@ -75,14 +75,13 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
         case .e2b: return "2B • ~3.6 GB • vision-capable, heaviest"
         case .smolVLM2_2B: return "2.2B • ~2.6 GB • on-device vision: photos + live video"
         case .fastVLM05B: return "0.5B • ~1.0 GB • Apple FastVLM — fastest real-time vision"
-        case .fastVLM15B: return "1.5B • ~2.4 GB • Apple FastVLM — sharper vision, still fast"
         }
     }
 
     /// Vision models load via VLMModelFactory; text models via LLMModelFactory.
     var isVLM: Bool {
         switch self {
-        case .e2b, .smolVLM2_2B, .fastVLM05B, .fastVLM15B: return true
+        case .e2b, .smolVLM2_2B, .fastVLM05B: return true
         case .qwen05B, .gemma2_2B, .qwen3B: return false
         }
     }
@@ -93,7 +92,7 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
     /// FastVLM's FastViTHD encoder is designed to be fast and memory-light at high resolution.
     var supportsOnDeviceVision: Bool {
         switch self {
-        case .smolVLM2_2B, .fastVLM05B, .fastVLM15B: return true
+        case .smolVLM2_2B, .fastVLM05B: return true
         default: return false
         }
     }
@@ -101,7 +100,7 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
     /// True for the FastVLM family (used to keep FastVLM at native resolution rather than the
     /// SmolVLM downscale, and to trigger the 1.5B processor-config patch).
     var isFastVLM: Bool {
-        self == .fastVLM05B || self == .fastVLM15B
+        self == .fastVLM05B
     }
 
     static func from(modelId: String) -> GemmaLocalModel {
