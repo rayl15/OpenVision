@@ -326,59 +326,54 @@ struct VoiceAgentView: View {
     // MARK: - Center Content
 
     private var centerContent: some View {
-        VStack(spacing: 32) {
-            // Status hints
-            if agentState == .idle && settingsManager.settings.wakeWordEnabled {
-                if isVoiceReady {
-                    Text("Say \"\(settingsManager.settings.wakeWord)\" to start")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.6))
-                        .transition(.opacity)
-                } else {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(0.8)
-                        Text("Initializing voice...")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.6))
+        VStack(spacing: 28) {
+            // Heading / status prompt
+            Group {
+                if agentState == .liveVideo {
+                    VStack(spacing: 6) {
+                        Text(settingsManager.settings.backendDisplayName)
+                            .font(.headline)
+                            .foregroundColor(Theme.heading)
+                        Text("Say \"stop video\" to exit")
+                            .font(.caption)
+                            .foregroundColor(Theme.textSecondary)
                     }
-                    .transition(.opacity)
+                } else if agentState == .idle && settingsManager.settings.wakeWordEnabled {
+                    VStack(spacing: 8) {
+                        Text("What can I see?")
+                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .foregroundColor(Theme.heading)
+                        if isVoiceReady {
+                            Text("Say \"\(settingsManager.settings.wakeWord)\" or tap the orb")
+                                .font(.subheadline)
+                                .foregroundColor(Theme.textSecondary)
+                        } else {
+                            HStack(spacing: 8) {
+                                ProgressView().tint(Theme.accent).scaleEffect(0.8)
+                                Text("Initializing voice…")
+                                    .font(.subheadline)
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+                        }
+                    }
                 }
-            } else if agentState == .liveVideo {
-                VStack(spacing: 4) {
-                    Text("Gemini Live")
-                        .font(.headline)
-                        .foregroundColor(.white)
-
-                    Text("Say \"stop video\" to exit")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                .transition(.opacity)
             }
+            .transition(.opacity)
 
-            // Waveform visualizer
-            WaveformVisualizer(
+            // The assistant identity: swirling emerald orb (tap to start/stop a session)
+            SwirlOrb(
                 isActive: agentState == .listening || agentState == .speaking,
-                intensity: audioLevel
+                isThinking: agentState == .thinking || agentState == .toolRunning,
+                intensity: audioLevel,
+                size: 200
             )
-            .frame(height: 80)
-            .padding(.horizontal, 40)
-
-            // Main orb button
-            GlowingOrbButton(
-                isActive: isSessionActive,
-                isProcessing: agentState == .thinking || agentState == .toolRunning
-            ) {
-                toggleSession()
-            }
+            .onTapGesture { toggleSession() }
 
             // Status text
             Text(agentState.displayText)
                 .font(.title3)
                 .fontWeight(.medium)
-                .foregroundColor(.white)
+                .foregroundColor(Theme.textPrimary)
 
             // Tool status
             if let tool = currentToolName, agentState == .toolRunning {
@@ -407,29 +402,10 @@ struct VoiceAgentView: View {
 
     // MARK: - Bottom Controls
 
-    private var bottomControls: some View {
-        HStack(spacing: 24) {
-            // Camera button
-            FloatingActionButton(
-                icon: "camera.fill",
-                color: .blue,
-                isEnabled: glassesManager.isStreaming || true // Enable for iPhone fallback
-            ) {
-                capturePhoto()
-            }
-
-            // Main button is in center content
-
-            // Settings quick access
-            FloatingActionButton(
-                icon: "slider.horizontal.3",
-                color: .purple,
-                isEnabled: true
-            ) {
-                // Quick settings
-            }
-        }
-    }
+    // Bottom controls intentionally removed: the old camera/quick-settings floating buttons were
+    // non-functional/redundant (the camera flow is voice-driven; Settings lives in the tab bar).
+    // Interaction is now the orb (tap) + wake word, matching the reference design.
+    private var bottomControls: some View { EmptyView() }
 
     // MARK: - Error Overlay
 

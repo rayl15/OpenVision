@@ -9,95 +9,44 @@ struct AnimatedBackground: View {
 
     var body: some View {
         ZStack {
-            // Base dark gradient
-            LinearGradient(
-                colors: [
-                    Color(red: 0.02, green: 0.02, blue: 0.08),
-                    Color(red: 0.05, green: 0.02, blue: 0.12)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            // Near-black base
+            Theme.bg
 
-            // Animated accent blobs
+            // Emerald ambient glow — brightest around the center, drifting slowly for life.
             GeometryReader { geometry in
                 ZStack {
-                    // Blue blob
+                    // Main center glow (sits behind the orb)
                     Circle()
                         .fill(
                             RadialGradient(
-                                colors: [
-                                    Color.blue.opacity(0.3),
-                                    Color.blue.opacity(0)
-                                ],
+                                colors: [Theme.accent.opacity(0.28), Theme.accentDeep.opacity(0.12), .clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: geometry.size.width * 0.55
+                            )
+                        )
+                        .frame(width: geometry.size.width * 1.2)
+                        .offset(
+                            x: animateGradient ? geometry.size.width * 0.06 : -geometry.size.width * 0.06,
+                            y: animateGradient ? -geometry.size.height * 0.04 : geometry.size.height * 0.02
+                        )
+                        .blur(radius: 70)
+
+                    // Subtle top glow
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Theme.glow.opacity(0.18), .clear],
                                 center: .center,
                                 startRadius: 0,
                                 endRadius: geometry.size.width * 0.4
                             )
                         )
                         .frame(width: geometry.size.width * 0.8)
-                        .offset(
-                            x: animateGradient ? -geometry.size.width * 0.2 : geometry.size.width * 0.1,
-                            y: animateGradient ? -geometry.size.height * 0.1 : geometry.size.height * 0.1
-                        )
+                        .offset(x: 0, y: -geometry.size.height * (animateGradient ? 0.34 : 0.30))
                         .blur(radius: 60)
-
-                    // Purple blob
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    Color.purple.opacity(0.25),
-                                    Color.purple.opacity(0)
-                                ],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geometry.size.width * 0.5
-                            )
-                        )
-                        .frame(width: geometry.size.width)
-                        .offset(
-                            x: animateGradient ? geometry.size.width * 0.2 : -geometry.size.width * 0.1,
-                            y: animateGradient ? geometry.size.height * 0.3 : geometry.size.height * 0.2
-                        )
-                        .blur(radius: 80)
-
-                    // Cyan accent
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    Color.cyan.opacity(0.15),
-                                    Color.cyan.opacity(0)
-                                ],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geometry.size.width * 0.3
-                            )
-                        )
-                        .frame(width: geometry.size.width * 0.6)
-                        .offset(
-                            x: animateGradient ? geometry.size.width * 0.3 : geometry.size.width * 0.1,
-                            y: animateGradient ? -geometry.size.height * 0.2 : geometry.size.height * 0.3
-                        )
-                        .blur(radius: 50)
                 }
             }
-
-            // Noise texture overlay for depth
-            Rectangle()
-                .fill(.white.opacity(0.02))
-                .background(
-                    Canvas { context, size in
-                        // Simple noise pattern
-                        for _ in 0..<100 {
-                            let x = CGFloat.random(in: 0...size.width)
-                            let y = CGFloat.random(in: 0...size.height)
-                            let rect = CGRect(x: x, y: y, width: 1, height: 1)
-                            context.fill(Path(rect), with: .color(.white.opacity(0.03)))
-                        }
-                    }
-                )
         }
         .ignoresSafeArea()
         .onAppear {
