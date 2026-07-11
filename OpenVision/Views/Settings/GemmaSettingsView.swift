@@ -19,8 +19,14 @@ struct GemmaSettingsView: View {
     private var sizeText: String {
         ByteCountFormatter.string(fromByteCount: selectedSizeBytes, countStyle: .file)
     }
-    private var selectedIsDownloaded: Bool { selectedSizeBytes > 0 }
+    private var selectedIsDownloaded: Bool { isDownloaded(selectedModel) }
     private var activeModelId: String { settingsManager.settings.localGemmaModelId }
+
+    /// "Downloaded" means most of the WEIGHTS are on disk. A snapshot holding only configs and
+    /// tokenizer (~20 MB) used to pass a `> 0` check and made missing models look ready.
+    private func isDownloaded(_ model: GemmaLocalModel) -> Bool {
+        (sizes[model.modelId] ?? 0) >= model.expectedDownloadBytes / 2
+    }
 
     var body: some View {
         Form {
@@ -95,6 +101,7 @@ struct GemmaSettingsView: View {
         .onAppear {
             selectedModel = GemmaLocalModel.from(modelId: settingsManager.settings.localGemmaModelId)
             refreshSizes()
+            Task.detached { GemmaLocalService.debugDumpHubCache() }
         }
         .alert("Delete \(selectedModel.displayName)?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) { deleteModel() }
@@ -108,7 +115,7 @@ struct GemmaSettingsView: View {
 
     @ViewBuilder
     private func modelRow(_ model: GemmaLocalModel) -> some View {
-        let downloaded = (sizes[model.modelId] ?? 0) > 0
+        let downloaded = isDownloaded(model)
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -129,6 +136,10 @@ struct GemmaSettingsView: View {
                     Text("Downloaded • \(ByteCountFormatter.string(fromByteCount: sizes[model.modelId] ?? 0, countStyle: .file))")
                         .font(.caption2)
                         .foregroundStyle(.green)
+                } else if (sizes[model.modelId] ?? 0) > 0 {
+                    Text("Incomplete — download again")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
                 }
             }
             Spacer()
@@ -145,7 +156,7 @@ struct GemmaSettingsView: View {
         // setting used to persist only after a fresh download, so switching between
         // already-downloaded models never took effect — the home screen (and the backend)
         // stayed on the previous model.
-        if (sizes[model.modelId] ?? 0) > 0 {
+        if isDownloaded(model) {
             settingsManager.settings.localGemmaModelId = model.modelId
             settingsManager.settings.localGemmaModelReady = true
             settingsManager.saveNow()

@@ -338,9 +338,10 @@ final class GemmaLocalService: ObservableObject {
         // size for real, monotonic progress. Capped at 99% until the load truly completes.
         let modelId = model.modelId
         let expected = max(model.expectedDownloadBytes, 1)
+        let started = Date()
         let poller = Task.detached { [weak self] in
             while !Task.isCancelled {
-                let bytes = Self.inFlightDownloadBytes(for: modelId)
+                let bytes = Self.inFlightDownloadBytes(for: modelId, since: started)
                 let est = min(0.99, Double(bytes) / Double(expected))
                 await MainActor.run { self?.bumpDownloadProgress(est) }
                 try? await Task.sleep(nanoseconds: 700_000_000)
@@ -520,6 +521,90 @@ final class GemmaLocalService: ObservableObject {
         return found
     }
 
+    // MARK: - Model store bootstrap (run once, before any HubClient exists)
+
+    /// The permanent home for downloaded models: Application Support (NOT purged by iOS).
+    nonisolated static var modelStoreURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("huggingface/hub", isDirectory: true)
+    }
+
+    /// Point the HuggingFace hub cache at Application Support and clean up download debris.
+    /// The default hub location is `Library/Caches/huggingface/hub`, which iOS purges under
+    /// storage pressure — downloaded weights silently vanished and were re-downloaded on the next
+    /// connect. Interrupted downloads also strand multi-GB `CFNetworkDownload_*.tmp` files (6+ GB
+    /// observed); at launch none can be in flight, so sweep them all.
+    nonisolated static func bootstrapModelStore() {
+        let fm = FileManager.default
+        let store = modelStoreURL
+        try? fm.createDirectory(at: store, withIntermediateDirectories: true)
+
+        // Migrate whatever survives in the old purgeable location (configs/partial snapshots).
+        if let caches = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let old = caches.appendingPathComponent("huggingface/hub", isDirectory: true)
+            if fm.fileExists(atPath: old.path),
+               let entries = try? fm.contentsOfDirectory(at: old, includingPropertiesForKeys: nil) {
+                for entry in entries {
+                    let dest = store.appendingPathComponent(entry.lastPathComponent)
+                    if !fm.fileExists(atPath: dest.path) {
+                        try? fm.moveItem(at: entry, to: dest)
+                    }
+                }
+                try? fm.removeItem(at: old)
+                NSLog("[OV] model store: migrated old cache → Application Support")
+            }
+        }
+
+        // Multi-GB of weights must not sync to iCloud backups.
+        var storeURL = store
+        var noBackup = URLResourceValues()
+        noBackup.isExcludedFromBackup = true
+        try? storeURL.setResourceValues(noBackup)
+
+        // Redirect the hub library here (read at HubClient init — hence "before any HubClient").
+        setenv("HF_HUB_CACHE", store.path, 1)
+
+        // Sweep orphaned download temps.
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        var freed: Int64 = 0
+        if let items = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil) {
+            for item in items where item.lastPathComponent.hasPrefix("CFNetworkDownload_") {
+                freed += dirSizeBytes(item)
+                try? fm.removeItem(at: item)
+            }
+        }
+        if freed > 0 { NSLog("[OV] model store: swept %lld MB of orphaned download temps", freed / 1_048_576) }
+    }
+
+    /// DEBUG: log the hub cache layout (dirs to depth 4 with sizes) so size/delete matching can be
+    /// verified against reality on-device.
+    nonisolated static func debugDumpHubCache() {
+        let fm = FileManager.default
+        for (name, dir) in [("documents", FileManager.SearchPathDirectory.documentDirectory),
+                            ("caches", .cachesDirectory), ("appSupport", .applicationSupportDirectory)] {
+            guard let base = fm.urls(for: dir, in: .userDomainMask).first else { continue }
+            let hf = base.appendingPathComponent("huggingface", isDirectory: true)
+            guard fm.fileExists(atPath: hf.path) else { NSLog("[OV] hubdump %@: (none)", name); continue }
+            NSLog("[OV] hubdump %@/huggingface = %lld MB", name, dirSizeBytes(hf) / 1_048_576)
+            guard let en = fm.enumerator(at: hf, includingPropertiesForKeys: [.isDirectoryKey]) else { continue }
+            for case let url as URL in en where en.level <= 4 {
+                let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+                if isDir {
+                    NSLog("[OV] hubdump  L%d dir  %@ = %lld MB", en.level,
+                          url.path.replacingOccurrences(of: hf.path, with: ""), dirSizeBytes(url) / 1_048_576)
+                    if en.level == 4 { en.skipDescendants() }
+                }
+            }
+        }
+        // tmp leftovers
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        if let items = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil) {
+            for i in items where i.lastPathComponent.hasPrefix("CFNetworkDownload_") {
+                NSLog("[OV] hubdump tmp %@ = %lld MB", i.lastPathComponent, dirSizeBytes(i) / 1_048_576)
+            }
+        }
+    }
+
     /// On-disk size in bytes. With a `modelId`, measures ONLY that model's snapshot (plus its
     /// in-flight download temp files); previously this summed the whole cache, so every model
     /// showed the same total. Empty id = everything (legacy/all-models).
@@ -532,13 +617,16 @@ final class GemmaLocalService: ObservableObject {
 
     /// Bytes on disk attributable to an in-progress download of `modelId`: the partial snapshot
     /// plus CFNetwork's in-flight temp files (where the big safetensors grows until it completes).
-    nonisolated private static func inFlightDownloadBytes(for modelId: String) -> Int64 {
+    /// Only temps CREATED after `start` count — stale orphans from interrupted downloads made the
+    /// progress bar jump straight to 99%.
+    nonisolated private static func inFlightDownloadBytes(for modelId: String, since start: Date) -> Int64 {
         var total = downloadedSizeBytes(for: modelId)
         let fm = FileManager.default
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
-        if let items = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil) {
+        if let items = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: [.creationDateKey]) {
             for item in items where item.lastPathComponent.hasPrefix("CFNetworkDownload_") {
-                total += dirSizeBytes(item)
+                let created = (try? item.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+                if created >= start { total += dirSizeBytes(item) }
             }
         }
         return total

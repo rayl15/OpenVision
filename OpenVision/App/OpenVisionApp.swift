@@ -19,6 +19,11 @@ struct OpenVisionApp: App {
     // MARK: - Initialization
 
     init() {
+        // Move the model store OUT of Caches before anything touches the hub. iOS may purge
+        // Caches under storage pressure, which silently deleted downloaded model weights (the app
+        // then re-downloaded ~GBs at "connecting…" time). Must run before any HubClient exists.
+        GemmaLocalService.bootstrapModelStore()
+
         // Initialize Meta Wearables SDK
         do {
             try Wearables.configure()
