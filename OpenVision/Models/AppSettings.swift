@@ -17,7 +17,7 @@ enum AIBackendType: String, Codable, CaseIterable {
         case .geminiLive: return "Gemini Live"
         case .openAI: return "OpenAI"
         case .appleFoundation: return "Apple Intelligence"
-        case .localGemma: return "Local (Gemma 4)"
+        case .localGemma: return "Local (MLX)"
         }
     }
 
@@ -193,5 +193,12 @@ struct AppSettings: Codable, Equatable {
         case .appleFoundation: return true   // OS-managed; availability checked at connect
         case .localGemma: return isLocalGemmaConfigured
         }
+    }
+
+    /// Backend label for the UI. For the local backend, reflects the *actually selected* MLX model
+    /// (Qwen / SmolVLM / FastVLM / …) instead of a fixed name, so the main-screen pill is accurate.
+    var backendDisplayName: String {
+        guard aiBackend == .localGemma else { return aiBackend.displayName }
+        return "Local · \(GemmaLocalModel.from(modelId: localGemmaModelId).displayName)"
     }
 }

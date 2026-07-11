@@ -290,7 +290,7 @@ struct VoiceAgentView: View {
                 )
             } else {
                 StatusPill(
-                    status: settingsManager.settings.aiBackend.displayName,
+                    status: settingsManager.settings.backendDisplayName,
                     color: agentState == .idle ? .gray : .green,
                     isConnected: agentState != .idle && agentState != .connecting
                 )
