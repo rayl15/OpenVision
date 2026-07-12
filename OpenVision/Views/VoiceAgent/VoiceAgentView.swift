@@ -51,6 +51,12 @@ struct VoiceAgentView: View {
     @State private var ttsStreamSpokenChars = 0
     @State private var ttsStreaming = false
 
+    /// History: true after a user command was recorded, until its reply is recorded. Keeps
+    /// system utterances ("Live video mode active", error prompts) out of the History tab.
+    @State private var historyAwaitingReply = false
+    /// History (live modes): last streamed AI turn already recorded, to dedupe turn-complete events.
+    @State private var historyLastLiveReply = ""
+
 
     // MARK: - Agent State
 
@@ -766,6 +772,11 @@ struct VoiceAgentView: View {
 
             self.userTranscript = command
 
+            // History: every captured command is a user message (Meta AI records all glasses
+            // prompts to its History tab; same idea, on-device).
+            ConversationManager.shared.addUserMessage(command)
+            self.historyAwaitingReply = true
+
             // Send command to AI backend
             Task {
                 await self.sendCommand(command)
@@ -960,6 +971,8 @@ struct VoiceAgentView: View {
         GeminiLiveService.shared.onTurnComplete = {
             self.agentState = self.isSessionActive ? .listening : .idle
             self.voiceCommandService.enterConversationMode()
+            // History: persist this Gemini Live exchange (transcript only, no frames).
+            self.recordLiveTurn()
         }
     }
 
@@ -1408,7 +1421,10 @@ struct VoiceAgentView: View {
 
         // Turn complete
         service.onTurnComplete = {
-            // Still in live mode, keep listening
+            Task { @MainActor in
+                // History: persist this live-video exchange (transcript only, no frames).
+                self.recordLiveTurn()
+            }
         }
 
         // Disconnection - handle reconnection or mode exit
@@ -1782,6 +1798,7 @@ struct VoiceAgentView: View {
             ttsStreamSpokenChars = cumulative.count
             ttsService.endStreaming()
             ttsStreaming = false
+            recordAssistantReply(cumulative)   // history: streamed reply is complete
             return
         }
 
@@ -1818,12 +1835,36 @@ struct VoiceAgentView: View {
     /// Speak AI response via TTS
     private func speakResponse(_ text: String) {
         guard !text.isEmpty else { return }
+        recordAssistantReply(text)
         // Kokoro (on-device neural) when selected + ready; otherwise the Apple system voice.
         if settingsManager.settings.ttsEngine == .kokoro && KokoroTTSService.shared.isModelReady {
             Task { await KokoroTTSService.shared.speak(text, voice: settingsManager.settings.kokoroVoice) }
         } else {
             ttsService.speak(text)
         }
+    }
+
+    /// History: persist the assistant's reply, but only when it answers a recorded user command —
+    /// system utterances ("Live video mode active", connection errors) stay out of History.
+    private func recordAssistantReply(_ text: String) {
+        guard historyAwaitingReply else { return }
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        ConversationManager.shared.addAssistantMessage(clean)
+        historyAwaitingReply = false
+    }
+
+    /// History (live video / realtime modes): commands don't pass through onCommandCaptured there,
+    /// so record the user+assistant pair at each turn boundary. Transcript only — video frames are
+    /// never stored (same policy as Meta's live AI history).
+    private func recordLiveTurn() {
+        let user = userTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reply = aiTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !reply.isEmpty, reply != historyLastLiveReply else { return }
+        if !user.isEmpty { ConversationManager.shared.addUserMessage(user) }
+        ConversationManager.shared.addAssistantMessage(reply)
+        historyLastLiveReply = reply
+        historyAwaitingReply = false
     }
 
     // MARK: - Tool Handlers

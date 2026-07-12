@@ -29,6 +29,19 @@ final class ConversationContext {
 
     func clear() { turns.removeAll() }
 
+    /// Resume a past conversation from History: reload its recent exchanges as live context so
+    /// follow-up questions pick up where that conversation left off.
+    func seed(from conversation: Conversation) {
+        turns.removeAll()
+        for message in conversation.messages.suffix(maxMessages) {
+            switch message.role {
+            case .user: append(role: "user", content: message.content)
+            case .assistant: append(role: "assistant", content: message.content)
+            default: break
+            }
+        }
+    }
+
     private func append(role: String, content: String) {
         let clean = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }

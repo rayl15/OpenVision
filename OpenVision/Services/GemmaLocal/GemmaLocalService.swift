@@ -712,6 +712,11 @@ final class GemmaLocalService: ObservableObject {
 
         var chat: [Chat.Message] = []
         chat.append(.init(role: .system, content: systemContent))
+        // Session context so follow-ups work ("what about the one on the left?") — text turns
+        // only; past frames are never re-sent (each vision turn sees only the current frame).
+        for turn in ConversationContext.shared.turns {
+            chat.append(.init(role: turn.role == "assistant" ? .assistant : .user, content: turn.content))
+        }
         if let visionImage {
             chat.append(.init(role: .user, content: text, images: [.ciImage(visionImage)]))
         } else {
@@ -777,6 +782,8 @@ final class GemmaLocalService: ObservableObject {
 
         let reply = full
         if !cancelRequested && myID == generationID {
+            // Remember this exchange (vision Q&A included) so in-session follow-ups have context.
+            ConversationContext.shared.record(user: text, assistant: reply)
             await MainActor.run { self.onAgentMessage?(reply) }
         }
     }

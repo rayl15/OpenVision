@@ -8,18 +8,20 @@ struct ConversationListView: View {
 
     @EnvironmentObject var settingsManager: SettingsManager
 
+    // The single source of truth. The old version kept a local @State copy that was never
+    // even populated — History was permanently empty.
+    @ObservedObject private var conversationManager = ConversationManager.shared
+
     // MARK: - State
 
-    @State private var conversations: [Conversation] = []
     @State private var searchText: String = ""
-    @State private var selectedConversation: Conversation?
 
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
             Group {
-                if conversations.isEmpty {
+                if conversationManager.conversations.isEmpty {
                     emptyState
                 } else {
                     conversationList
@@ -30,7 +32,10 @@ struct ConversationListView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        // Start new conversation
+                        // Fresh conversation: next exchange starts a new History entry with
+                        // no carried-over model context.
+                        conversationManager.startNewConversation()
+                        ConversationContext.shared.clear()
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -77,22 +82,18 @@ struct ConversationListView: View {
     // MARK: - Filtered Conversations
 
     private var filteredConversations: [Conversation] {
-        if searchText.isEmpty {
-            return conversations
-        }
-        return conversations.filter { conversation in
-            conversation.title.localizedCaseInsensitiveContains(searchText) ||
-            conversation.messages.contains { message in
-                message.content.localizedCaseInsensitiveContains(searchText)
-            }
-        }
+        conversationManager.search(searchText)
     }
 
     // MARK: - Methods
 
     private func deleteConversations(at offsets: IndexSet) {
-        conversations.remove(atOffsets: offsets)
-        // TODO: Persist deletion
+        // Resolve against the FILTERED list (offsets come from it), then delete via the
+        // manager so the removal persists.
+        let targets = offsets.map { filteredConversations[$0] }
+        for conversation in targets {
+            conversationManager.deleteConversation(conversation)
+        }
     }
 }
 
@@ -142,6 +143,7 @@ struct ConversationRow: View {
 
 struct ConversationDetailView: View {
     let conversation: Conversation
+    @State private var resumed = false
 
     var body: some View {
         ScrollView {
@@ -157,10 +159,16 @@ struct ConversationDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    // Continue conversation
+                    // Continue this conversation: make it current (new messages append to it)
+                    // and reload its recent exchanges as the model's live context, so the next
+                    // "Ok Vision" follow-up picks up where it left off.
+                    ConversationManager.shared.resumeConversation(conversation)
+                    ConversationContext.shared.seed(from: conversation)
+                    resumed = true
                 } label: {
-                    Label("Continue", systemImage: "arrow.right.circle")
+                    Label(resumed ? "Resumed" : "Continue", systemImage: resumed ? "checkmark.circle" : "arrow.right.circle")
                 }
+                .disabled(resumed)
             }
         }
     }

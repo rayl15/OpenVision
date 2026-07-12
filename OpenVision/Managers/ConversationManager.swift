@@ -119,12 +119,16 @@ final class ConversationManager: ObservableObject {
 
     /// Resume a conversation
     func resumeConversation(_ conversation: Conversation) {
-        currentConversation = conversation
+        var resumed = conversation
+        // Touch the activity clock — otherwise the inactivity check immediately spins up a NEW
+        // conversation on the next message, silently defeating the resume.
+        resumed.lastActivityAt = Date()
+        currentConversation = resumed
 
         // Move to top of list
         if let index = conversations.firstIndex(where: { $0.id == conversation.id }) {
             conversations.remove(at: index)
-            conversations.insert(conversation, at: 0)
+            conversations.insert(resumed, at: 0)
         }
 
         print("[ConversationManager] Resumed conversation: \(conversation.id)")
