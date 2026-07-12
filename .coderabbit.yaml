@@ -1,0 +1,41 @@
+# CodeRabbit configuration for OpenVision
+# Docs: https://docs.coderabbit.ai/reference/configuration
+
+language: "en-US"
+
+reviews:
+  # "chill" keeps findings focused on real issues instead of style nitpicks.
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_filters:
+    - "!docs/images/**"
+    - "!**/*.png"
+    - "!**/*.gif"
+    - "!**/*.xcodeproj/**"
+
+  path_instructions:
+    - path: "OpenVision/**/*.swift"
+      instructions: |
+        This is an iOS 18+ SwiftUI app running MLX models on-device and talking to
+        Meta Ray-Ban glasses over Bluetooth. Pay special attention to:
+        - Memory pressure: on-device model loads run close to the iOS jetsam limit;
+          flag anything that could duplicate large buffers or retain model containers.
+        - Concurrency: @MainActor isolation, Task.detached usage, and state races
+          between the speech recognizer, TTS engines, and SwiftUI state.
+        - Audio-session handling: AVAudioSession routing with Bluetooth HFP is fragile;
+          question changes that stop/rebuild the audio engine.
+        - UI state machines: agentState transitions (idle/listening/thinking/speaking)
+          have a history of race bugs — verify guards against TTS still speaking.
+        Do not comment on Xcode project structure, code sign settings, or asset files.
+
+chat:
+  auto_reply: true
