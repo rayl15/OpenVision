@@ -60,6 +60,8 @@ enum LocalAgent {
         User: who is the CEO of a small startup you don't know → {"tool":"web_search","query":"CEO of that startup"}
 
         Only answer directly (no search) when you are genuinely confident it's stable, well-known info — math, definitions, general facts. Then answer in 1-3 short sentences. Do NOT mention faces, tools, or JSON.
+
+        You DO have conversation memory: the earlier messages in this chat are your record of the conversation so far. Use them for follow-ups — e.g. for "what were we talking about?" summarize those earlier messages; for "what about X?" resolve it against the previous topic. Never claim you can't remember when earlier messages exist.
         """
         guard let output = await generate(system, history, command) else {
             return .answer("Sorry, I couldn't process that — please try again.")

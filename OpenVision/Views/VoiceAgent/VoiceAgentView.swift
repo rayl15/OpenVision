@@ -470,9 +470,14 @@ struct VoiceAgentView: View {
         isSessionActive = true
         agentState = .connecting
 
-        // Fresh conversation context for this session (follow-ups within the session keep context).
-        ConversationContext.shared.clear()
-        AppleFoundationService.shared.resetContext()
+        // Model memory follows the History conversation window (5-min inactivity), NOT the wake
+        // session — every "Ok Vision" starts a new session, so clearing here made "what were we
+        // just talking about?" fail seconds after the previous answer. Only reset memory when
+        // enough time has passed that History would start a new conversation anyway.
+        if !ConversationManager.shared.isCurrentConversationFresh {
+            ConversationContext.shared.clear()
+            AppleFoundationService.shared.resetContext()
+        }
 
         // Configure audio routing for glasses if registered
         configureAudioForGlasses()
