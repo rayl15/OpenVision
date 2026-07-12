@@ -110,21 +110,15 @@ With **SmolVLM2** selected as your local model, **"Ok Vision, take a photo and t
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/voice-interface.png" width="180" alt="Voice Interface"/>
-  &nbsp;&nbsp;
-  <img src="docs/images/settings.png" width="180" alt="Settings"/>
-  &nbsp;&nbsp;
-  <img src="docs/images/ai-backend.png" width="180" alt="AI Backend Selection"/>
-  &nbsp;&nbsp;
-  <img src="docs/images/glasses-settings.png" width="180" alt="Glasses Settings"/>
+  <img src="docs/images/screenshots.png" alt="OpenVision screens — Voice Assistant, Settings, AI Backends, Local Models" width="100%"/>
 </p>
 
 | Screen | Description |
 |--------|-------------|
-| **Voice Interface** | Main conversation screen with wake word prompt, waveform visualizer, and quick actions (camera, settings) |
-| **Settings** | Configure AI backend, glasses, voice control, and advanced options |
-| **AI Backend** | Choose Local Gemma, Apple Intelligence (on-device), OpenClaw (tools), Gemini Live (low latency), or OpenAI |
-| **Glasses** | Register glasses with Meta AI, view device status, control camera streaming |
+| **Voice Assistant** | Tap the orb or say "Ok Vision" — live transcripts, distinct listening/thinking/speaking states |
+| **Settings** | Configure AI backend, web search, glasses, voice control, and advanced options |
+| **AI Backends** | Choose Local (MLX), Apple Intelligence (on-device), OpenClaw (tools), Gemini Live (low latency), or OpenAI |
+| **Local Models** | Download and manage on-device models (Qwen, Gemma, SmolVLM2, FastVLM) with real sizes and one-tap switching |
 
 ---
 
