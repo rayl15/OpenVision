@@ -69,12 +69,12 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
 
     var detail: String {
         switch self {
-        case .qwen05B: return "0.5B • ~0.4 GB • tiny, lowest memory, fastest"
-        case .gemma2_2B: return "2B • ~1.5 GB • balanced text"
-        case .qwen3B: return "3B • ~1.9 GB • strongest text, still light"
+        case .qwen05B: return "0.5B • ~0.4 GB • tiny + fastest — weak at conversation memory"
+        case .gemma2_2B: return "2B • ~1.5 GB • balanced text, good conversation memory"
+        case .qwen3B: return "3B • ~1.9 GB • strongest text + best conversation memory"
         case .e2b: return "2B • ~3.6 GB • vision-capable, heaviest"
-        case .smolVLM2_2B: return "2.2B • ~2.6 GB • on-device vision: photos + live video"
-        case .fastVLM05B: return "0.5B • ~1.0 GB • Apple FastVLM — fastest real-time vision"
+        case .smolVLM2_2B: return "2.2B • ~2.6 GB • best all-round: vision + solid memory"
+        case .fastVLM05B: return "0.5B • ~1.0 GB • fastest live vision — weak at conversation memory"
         }
     }
 

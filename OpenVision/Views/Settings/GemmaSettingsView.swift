@@ -41,7 +41,7 @@ struct GemmaSettingsView: View {
             } header: {
                 Text("Model")
             } footer: {
-                Text("Runs entirely on-device via Apple MLX. Requires iOS 18+ and a physical device — no API key, no cloud, works offline. Tap a downloaded model to make it active.")
+                Text("Runs entirely on-device via Apple MLX. Requires iOS 18+ and a physical device — no API key, no cloud, works offline. Tap a downloaded model to make it active.\n\nRule of thumb: smaller = faster but forgetful; bigger = better follow-ups and memory. SmolVLM2 is the best mix of vision + conversation.")
             }
 
             Section {
