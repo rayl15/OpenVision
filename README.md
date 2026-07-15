@@ -13,6 +13,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Swift 5](https://img.shields.io/badge/Swift-5-orange.svg)](https://swift.org)
 [![iOS 18+](https://img.shields.io/badge/iOS-18+-blue.svg)](https://developer.apple.com/ios/)
+[![Latest release](https://img.shields.io/github/v/release/rayl15/OpenVision?color=2ea44f)](https://github.com/rayl15/OpenVision/releases)
+[![Stars](https://img.shields.io/github/stars/rayl15/OpenVision?logo=github)](https://github.com/rayl15/OpenVision/stargazers)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/rayl15/OpenVision/blob/main/CONTRIBUTING.md)
+[![good first issues](https://img.shields.io/github/issues/rayl15/OpenVision/good%20first%20issue?color=7057ff&label=good%20first%20issues)](https://github.com/rayl15/OpenVision/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 
 ---
 

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🌱 Good first issues
+    url: https://github.com/rayl15/OpenVision/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22
+    about: New here? These are scoped, beginner-friendly places to start.
+  - name: 🗺️ Roadmap
+    url: https://github.com/rayl15/OpenVision/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap
+    about: See where OpenVision is headed and larger tracking issues.

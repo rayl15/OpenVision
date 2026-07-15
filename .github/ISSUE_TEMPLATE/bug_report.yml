@@ -1,0 +1,57 @@
+name: 🐛 Bug report
+description: Something isn't working as expected
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! Please fill in the details below so it can be reproduced.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+      placeholder: When I say "Ok Vision" during a reply, the reply stops…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Select backend '…'
+        2. Say '…'
+        3. See '…'
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device & iOS version
+      placeholder: iPhone 17 Pro, iOS 18.5
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: AI backend
+      options:
+        - Local (MLX) — on-device
+        - Apple Intelligence
+        - OpenAI
+        - Gemini Live
+        - OpenClaw
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Local model (if applicable)
+      placeholder: SmolVLM2 2.2B / FastVLM 0.5B / Qwen 2.5 3B …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Xcode console output helps a lot. Filter by "[OV]", "[VoiceCommand]", "[GemmaLocal]", etc.
+      render: shell
