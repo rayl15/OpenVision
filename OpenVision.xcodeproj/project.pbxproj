@@ -52,6 +52,7 @@
 		79C519EDCA508C00DAAB1F6E /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42C04946FFC3B3A9DE78573 /* VoiceSettingsView.swift */; };
 		7A0FECD93C32597CA6659BC9 /* TimerTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605D6841BA373D249632606F /* TimerTool.swift */; };
 		7C118644498027D47E828115 /* wake_word_ding.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 98C627C6F13B708A7A8D2CDA /* wake_word_ding.mp3 */; };
+		7CE3313B3D27BADF471BC662 /* AIBackendConformances.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0861272700BD040456BCAFE /* AIBackendConformances.swift */; };
 		800BD44B75446351A267E190 /* OpenAISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D83F733F1799E2675A34CC4 /* OpenAISettingsView.swift */; };
 		81F38E617E61131E8C87620B /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = A7FF778329794C28B434EEAA /* MWDATCore */; };
 		8351C940EEB51503B73F3449 /* KokoroSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F363A639A7050AFBDFAF486 /* KokoroSettingsView.swift */; };
@@ -148,6 +149,7 @@
 		CAD745CF110FC8C25A5B34D8 /* HapticFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticFeedback.swift; sourceTree = "<group>"; };
 		CE2B8AE1E195B62D980BEA66 /* SoundService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundService.swift; sourceTree = "<group>"; };
 		CEE6F61B22736F87248FD0F5 /* LocalAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAgent.swift; sourceTree = "<group>"; };
+		D0861272700BD040456BCAFE /* AIBackendConformances.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendConformances.swift; sourceTree = "<group>"; };
 		D1428DBC281E476E9331F9B4 /* OpenVision-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "OpenVision-Bridging-Header.h"; sourceTree = "<group>"; };
 		D2563E08B4723C4A8848A8A6 /* kokoro-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "kokoro-ios"; path = "Vendor/kokoro-ios"; sourceTree = SOURCE_ROOT; };
 		D416290774C17FDC0DDFBC68 /* TTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSService.swift; sourceTree = "<group>"; };
@@ -484,6 +486,7 @@
 		F5B2AD1E1FABED62439F7733 /* AIBackend */ = {
 			isa = PBXGroup;
 			children = (
+				D0861272700BD040456BCAFE /* AIBackendConformances.swift */,
 				A900F00D2451513A29BC4C6F /* AIBackendProtocol.swift */,
 				FFDF4A693D2CEB248757FBD3 /* OpenAIService.swift */,
 			);
@@ -625,6 +628,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7CE3313B3D27BADF471BC662 /* AIBackendConformances.swift in Sources */,
 				0CD9B9D7D0854411C0A04148 /* AIBackendProtocol.swift in Sources */,
 				FCFECBF332943E64812DC931 /* AIBackendSettingsView.swift in Sources */,
 				3D871EEF1178A47F4999C7F2 /* AdditionalInstructionsView.swift in Sources */,

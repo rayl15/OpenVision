@@ -833,7 +833,48 @@ struct VoiceAgentView: View {
 
     /// Setup AI service callbacks for receiving responses
     private func setupAIServiceCallbacks() {
-        // Local Gemma callbacks
+        // Shared reply/state wiring — every AIBackend reports through the same two callbacks,
+        // so wire them once for all. (Gemini Live is a streaming session and delivers replies
+        // via its own transcription callbacks below; its protocol callbacks are inert.)
+        for backend in AIBackendRegistry.all {
+            backend.onAgentMessage = { (message: String) in
+                // In local live video mode replies must flow even if the session timer lapsed
+                // while the user was silently looking around.
+                guard self.isSessionActive || self.isLiveVideoMode else { return }
+                self.aiTranscript = message
+                if self.ttsStreaming {
+                    // A streamed utterance is open (local model + Apple TTS pipelining):
+                    // flush the unspoken tail and close the session.
+                    self.feedStreamingSpeech(message, isFinal: true)
+                } else {
+                    self.speakResponse(message)
+                }
+            }
+            backend.onProcessingChanged = { (isProcessing: Bool) in
+                if isProcessing {
+                    self.agentState = .thinking
+                    // New reply: reset the sentence-streaming cursor for a clean start.
+                    self.ttsStreaming = false
+                    self.ttsStreamSpokenChars = 0
+                } else {
+                    // Generation ended (always fires via defer, even when interrupted/superseded).
+                    // If a streamed utterance is still open, onAgentMessage never fired to close it —
+                    // close it here so streamingActive/isSpeaking don't stick true and freeze the
+                    // wake-word listener (queued sentences still drain and reset isSpeaking).
+                    if self.ttsStreaming {
+                        self.ttsService.endStreaming()
+                        self.ttsStreaming = false
+                    }
+                    if self.agentState == .thinking && !self.ttsService.isSpeaking {
+                        // Return to the live video indicator, not plain listening, while in live mode.
+                        self.agentState = self.isLiveVideoMode ? .liveVideo
+                            : (self.isSessionActive ? .listening : .idle)
+                    }
+                }
+            }
+        }
+
+        // Local Gemma extra: token streaming (pipelines Apple TTS behind generation).
         GemmaLocalService.shared.onPartialResponse = { (partial: String) in
             guard self.isSessionActive || self.isLiveVideoMode else { return }
             // Show tokens as they stream so it doesn't look stuck on "thinking".
@@ -843,100 +884,8 @@ struct VoiceAgentView: View {
             // and Apple TTS isn't on the GPU so it doesn't fight the on-device model.
             if self.usingAppleTTS { self.feedStreamingSpeech(partial, isFinal: false) }
         }
-        GemmaLocalService.shared.onAgentMessage = { (message: String) in
-            // In local live video mode replies must flow even if the session timer lapsed
-            // while the user was silently looking around.
-            guard self.isSessionActive || self.isLiveVideoMode else { return }
-            self.aiTranscript = message
-            if self.usingAppleTTS {
-                // Flush any unspoken tail and close the streamed utterance session.
-                self.feedStreamingSpeech(message, isFinal: true)
-            } else {
-                // Kokoro (on-device neural, GPU): synthesize the full reply after generation —
-                // keeps it off the GPU while the model is still decoding.
-                self.speakResponse(message)
-            }
-        }
-        GemmaLocalService.shared.onProcessingChanged = { (isProcessing: Bool) in
-            if isProcessing {
-                self.agentState = .thinking
-                // New reply: reset the sentence-streaming cursor for a clean start.
-                self.ttsStreaming = false
-                self.ttsStreamSpokenChars = 0
-            } else {
-                // Generation ended (always fires via defer, even when interrupted/superseded).
-                // If a streamed utterance is still open, onAgentMessage never fired to close it —
-                // close it here so streamingActive/isSpeaking don't stick true and freeze the
-                // wake-word listener (queued sentences still drain and reset isSpeaking).
-                if self.ttsStreaming {
-                    self.ttsService.endStreaming()
-                    self.ttsStreaming = false
-                }
-                if self.agentState == .thinking && !self.ttsService.isSpeaking {
-                    // Return to the live video indicator, not plain listening, while in live mode.
-                    self.agentState = self.isLiveVideoMode ? .liveVideo
-                        : (self.isSessionActive ? .listening : .idle)
-                }
-            }
-        }
 
-        // OpenAI callbacks
-        OpenAIService.shared.onAgentMessage = { (message: String) in
-            guard self.isSessionActive else { return }
-            self.aiTranscript = message
-            self.speakResponse(message)
-        }
-        OpenAIService.shared.onProcessingChanged = { (isProcessing: Bool) in
-            if isProcessing {
-                self.agentState = .thinking
-            } else if self.agentState == .thinking && !self.ttsService.isSpeaking {
-                self.agentState = self.isSessionActive ? .listening : .idle
-            }
-        }
-
-        // Apple Foundation callbacks (used only by the direct-message fallback path)
-        AppleFoundationService.shared.onAgentMessage = { (message: String) in
-            guard self.isSessionActive else { return }
-            self.aiTranscript = message
-            self.speakResponse(message)
-        }
-        AppleFoundationService.shared.onProcessingChanged = { (isProcessing: Bool) in
-            if isProcessing {
-                self.agentState = .thinking
-            } else if self.agentState == .thinking && !self.ttsService.isSpeaking {
-                self.agentState = self.isSessionActive ? .listening : .idle
-            }
-        }
-
-        // OpenClaw callbacks
-        OpenClawService.shared.onAgentMessage = { (message: String) in
-            print("[VoiceAgentView] Received AI message: \(message.prefix(50))...")
-
-            // IMPORTANT: Only speak responses when session is active
-            // This prevents speaking stale responses after session ends
-            guard self.isSessionActive else {
-                print("[VoiceAgentView] Ignoring AI message - session not active")
-                return
-            }
-
-            self.aiTranscript = message
-
-            // Speak the response via TTS
-            self.speakResponse(message)
-            // Note: agentState will be set to .speaking by TTS callback
-            // and back to .listening when TTS ends
-        }
-
-        OpenClawService.shared.onProcessingChanged = { (isProcessing: Bool) in
-            print("[VoiceAgentView] Processing changed: \(isProcessing)")
-            if isProcessing {
-                self.agentState = .thinking
-            } else if self.agentState == .thinking && !self.ttsService.isSpeaking {
-                // Only go to listening if not speaking
-                self.agentState = self.isSessionActive ? .listening : .idle
-            }
-        }
-
+        // OpenClaw extras: tool status + device-side tool calls.
         OpenClawService.shared.onToolStatusChanged = { (toolName: String?, isRunning: Bool) in
             print("[VoiceAgentView] Tool status: \(toolName ?? "none"), running: \(isRunning)")
             self.currentToolName = toolName
@@ -1091,37 +1040,24 @@ struct VoiceAgentView: View {
 
         let isPhotoCommand = photoKeywords.contains { lowerCommand.contains($0) }
 
+        // Drive whichever backend is selected through the AIBackend protocol — capabilities
+        // (localLLM, supportsImageInput) decide the path, not concrete service types.
+        let backend = AIBackendRegistry.backend(for: settingsManager.settings.aiBackend)
         do {
-            switch settingsManager.settings.aiBackend {
-            case .openClaw:
-                if isPhotoCommand {
-                    // Capture photo and send with command
-                    print("[VoiceAgentView] Photo command detected, capturing...")
-                    await captureAndSendPhoto(withPrompt: command)
-                } else {
-                    // Regular command - send as-is
-                    try await OpenClawService.shared.sendMessage(command)
-                }
-                // State updates handled by callbacks
-
-            case .openAI:
-                if isPhotoCommand {
-                    print("[VoiceAgentView] Photo command on OpenAI — capturing...")
-                    await captureAndSendPhoto(withPrompt: command)
-                } else {
-                    try await OpenAIService.shared.sendMessage(command)
-                }
+            if let llm = backend.localLLM {
+                // On-device routing brain (Gemma / Apple Intelligence): one generation that
+                // routes faces, web search, native tools, or answers.
+                await handleLocalCommand(command, llm: llm, isPhotoCommand: isPhotoCommand)
+            } else if isPhotoCommand && backend.supportsImageInput {
+                print("[VoiceAgentView] Photo command on \(backend.backendType.displayName) — capturing...")
+                await captureAndSendPhoto(withPrompt: command)
+            } else {
+                try await backend.sendMessage(command, imageData: nil)
+            }
+            // OpenAI is plain request/response with no session to keep "thinking" alive —
+            // restore the listening state inline. The others restore via their callbacks.
+            if backend.backendType == .openAI {
                 agentState = isSessionActive ? .listening : .idle
-
-            case .geminiLive:
-                try await GeminiLiveService.shared.sendText(command)
-                // Gemini Live handles response streaming via callbacks
-
-            case .localGemma:
-                await handleLocalCommand(command, llm: GemmaLocalService.shared, isPhotoCommand: isPhotoCommand)
-
-            case .appleFoundation:
-                await handleLocalCommand(command, llm: AppleFoundationService.shared, isPhotoCommand: isPhotoCommand)
             }
         } catch {
             errorMessage = "Failed to send command: \(error.localizedDescription)"
@@ -1499,15 +1435,16 @@ struct VoiceAgentView: View {
             speakResponse("This on-device model is text only. For camera questions, select SmolVLM2 as your local model, or switch to Gemini or OpenClaw in Settings.")
             return
         }
-        // Route the command. On the local backend with Apple TTS, stream the answer: speak
-        // sentences as they generate. Face/tool routes emit JSON starting with "{", so we only
-        // begin speaking once the streamed output's first non-space char proves it's a plain
-        // answer — never for a structured route.
+        // Route the command. With Apple TTS, stream the answer: speak sentences as they generate.
+        // Backends that can't stream (Apple FM) fall back to a plain route via the protocol's
+        // default implementation — onPartial simply never fires. Face/tool routes emit JSON
+        // starting with "{", so we only begin speaking once the streamed output's first non-space
+        // char proves it's a plain answer — never for a structured route.
         let result: LocalAgent.RouteResult
-        if let gemma = llm as? GemmaLocalService, usingAppleTTS {
+        if usingAppleTTS {
             ttsStreaming = false
             ttsStreamSpokenChars = 0
-            result = await gemma.routeCommandStreaming(command) { cumulative in
+            result = await llm.routeCommandStreaming(command) { cumulative in
                 let lead = cumulative.trimmingCharacters(in: .whitespacesAndNewlines).first
                 guard let lead, lead != "{" else { return }   // JSON route → don't speak
                 self.feedStreamingSpeech(cumulative, isFinal: false)
@@ -1606,20 +1543,10 @@ struct VoiceAgentView: View {
 
     /// Send a prompt (optionally with a photo) to whichever backend is currently selected.
     private func sendPromptToActiveBackend(_ prompt: String, imageData: Data?) async throws {
-        switch settingsManager.settings.aiBackend {
-        case .openClaw:
-            try await OpenClawService.shared.sendMessage(prompt, imageData: imageData)
-        case .openAI:
-            try await OpenAIService.shared.sendMessage(prompt, imageData: imageData)
-        case .appleFoundation:
-            // Text-only — send the prompt, ignore the image.
-            await AppleFoundationService.shared.sendMessage(prompt)
-        case .localGemma:
-            try await GemmaLocalService.shared.sendMessage(prompt, imageData: imageData)
-        case .geminiLive:
-            // Gemini Live streams video continuously; just send the text prompt.
-            try await GeminiLiveService.shared.sendText(prompt)
-        }
+        let backend = AIBackendRegistry.backend(for: settingsManager.settings.aiBackend)
+        // Backends that can't take an image (Apple FM text-only, Gemini streams video live)
+        // receive just the prompt.
+        try await backend.sendMessage(prompt, imageData: backend.supportsImageInput ? imageData : nil)
     }
 
     private func captureAndSendPhoto(withPrompt prompt: String) async {

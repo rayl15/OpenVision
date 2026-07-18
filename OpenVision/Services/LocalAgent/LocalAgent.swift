@@ -138,10 +138,20 @@ enum LocalAgent {
 @MainActor
 protocol LocalTextLLM: AnyObject {
     func routeCommand(_ command: String) async -> LocalAgent.RouteResult
+    /// Like `routeCommand`, but emits the cumulative output via `onPartial` while generating, so
+    /// the caller can pipeline speech behind generation. Backends that can't stream fall back to
+    /// the plain route (default implementation) — `onPartial` simply never fires.
+    func routeCommandStreaming(_ command: String, onPartial: @escaping (String) -> Void) async -> LocalAgent.RouteResult
     func answerWithSearchResult(question: String, result: String) async -> String
     /// Given a search query that returned nothing, propose ONE better query (or nil to give up).
     /// Enables an agentic retry so a weak first query doesn't sink the whole search.
     func reformulateSearchQuery(question: String, triedQuery: String) async -> String?
+}
+
+extension LocalTextLLM {
+    func routeCommandStreaming(_ command: String, onPartial: @escaping (String) -> Void) async -> LocalAgent.RouteResult {
+        await routeCommand(command)
+    }
 }
 
 extension LocalAgent {
