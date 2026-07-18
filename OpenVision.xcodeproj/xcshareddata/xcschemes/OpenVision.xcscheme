@@ -40,6 +40,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "60AF4ED566AAE248296380F1"
+               BuildableName = "OpenVisionTests.xctest"
+               BlueprintName = "OpenVisionTests"
+               ReferencedContainer = "container:OpenVision.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

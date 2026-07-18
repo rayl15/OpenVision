@@ -35,6 +35,17 @@ configFiles:
   Release: Config.xcconfig
 
 targets:
+  OpenVisionTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: OpenVisionTests
+    dependencies:
+      - target: OpenVision
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
   OpenVision:
     type: application
     platform: iOS
@@ -127,6 +138,8 @@ schemes:
     test:
       config: Debug
       gatherCoverageData: true
+      targets:
+        - OpenVisionTests
     profile:
       config: Release
     analyze:

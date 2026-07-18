@@ -21,6 +21,7 @@
 		341497F0AA31AE9C6E137386 /* MemoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 484468B5604EFF4051074762 /* MemoriesView.swift */; };
 		342B57112073CFC14CD78614 /* VoiceCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B5A07D9F5C0579C275C597 /* VoiceCommandService.swift */; };
 		359A931F49DDF267F80B07B2 /* AudioPlaybackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 529F4C0838CFE7F8F55E28E4 /* AudioPlaybackService.swift */; };
+		361AD2F1AB7C557D47CD125D /* TextChunkingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05A9A6876CC108B7CEDFDFC /* TextChunkingTests.swift */; };
 		37787EEECF8236DABFDE4D3D /* OVExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = 09CF2D46A856380011EEC513 /* OVExceptionCatcher.m */; };
 		3A3AC3A91A768EAE0B643B95 /* VoiceSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FEE8399255B598700D2F1F /* VoiceSelectionView.swift */; };
 		3CEB0ABE3CA96726C9FC7C3F /* AppleIntelligenceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BDBCEE6B3B8DF551525A4DA /* AppleIntelligenceSettingsView.swift */; };
@@ -36,6 +37,7 @@
 		587295A93FA82DEBB18139BB /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CC70E5327BD07B920833FC /* GlassCard.swift */; };
 		592C3761D12888A4F7E4562E /* CalendarTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83CCAB822E3A2D55FB3C338A /* CalendarTool.swift */; };
 		5C474A09B3067A8ACD7546C1 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B78D6C28BEFF1F8426997C /* AudioCaptureService.swift */; };
+		5F19226406CF5B705B57BACF /* NativeToolSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4D7E31C137C29246EB9281 /* NativeToolSupportTests.swift */; };
 		5F9D55BB6AA2E4CF8AF85A49 /* PomodoroTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45142B60B3D9295D07A3107F /* PomodoroTool.swift */; };
 		62B472287A9628E0E6FB377D /* GemmaLocalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBB8B07B4970CA5F63B3B2A /* GemmaLocalService.swift */; };
 		6627E81162A701E7EA1E6669 /* ContextualNoteTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 386A275ADCDB662B19D8E36F /* ContextualNoteTool.swift */; };
@@ -74,6 +76,7 @@
 		D8F7D3BE11230D5DE55E8D18 /* VoiceAgentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEDCA2C462B77066AA0CD25 /* VoiceAgentViewModel.swift */; };
 		DB74FBBD6B28327F7C12D1CA /* ConversationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6C681A43DB7DFF78CFE722 /* ConversationContext.swift */; };
 		DBAD28D914AC862DB5E6F367 /* ConversationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BCCC84E6880175BD83F37FD /* ConversationManager.swift */; };
+		DC6776A7CBFBB8E151FB6B85 /* LocalAgentRouteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD3DFE96152AAE9145F104D6 /* LocalAgentRouteTests.swift */; };
 		DCA893B0F4EB539CA4C1EC00 /* AppleNativeTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDBE980F673E3077B58977E5 /* AppleNativeTools.swift */; };
 		E002D977473CAE9959691682 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6188DD26571BACB30096654D /* Conversation.swift */; };
 		E7CDE1FBC061C2DF4BDDD84E /* wake_activation.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 1DD518E30804BD392EEA0B34 /* wake_activation.mp3 */; };
@@ -86,6 +89,16 @@
 		FCFECBF332943E64812DC931 /* AIBackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A8327E5265287A0C89DE3D /* AIBackendSettingsView.swift */; };
 		FFFDF7E8B3F8E6A194E1571E /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = CCBF8A11015C4FD6F78FF103 /* HuggingFace */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		878FCA5E5ACF645CA2719186 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A599D5BA1E0116337F64521E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9418DE699CD106BA6A8A4B7E;
+			remoteInfo = OpenVision;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		01CC70E5327BD07B920833FC /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
@@ -133,13 +146,16 @@
 		A1E4A28F9C0979733D4ABDB2 /* SwirlOrb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwirlOrb.swift; sourceTree = "<group>"; };
 		A7B97C063C947F53F6E209D1 /* AppleFoundationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationService.swift; sourceTree = "<group>"; };
 		A900F00D2451513A29BC4C6F /* AIBackendProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendProtocol.swift; sourceTree = "<group>"; };
+		ACA3BB4BDC73148785327C9A /* OpenVisionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OpenVisionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADC230E2AE44E5132DC5AB01 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		ADCFF581A7AE50FBF35EA257 /* GeminiLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiLiveService.swift; sourceTree = "<group>"; };
 		B2B78D6C28BEFF1F8426997C /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
 		B2FD4A9B156D92B468B28864 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		BDBE980F673E3077B58977E5 /* AppleNativeTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleNativeTools.swift; sourceTree = "<group>"; };
+		BE4D7E31C137C29246EB9281 /* NativeToolSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeToolSupportTests.swift; sourceTree = "<group>"; };
 		BE848862D72446F7BBDD3D89 /* KokoroTTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KokoroTTSService.swift; sourceTree = "<group>"; };
 		BEEDCA2C462B77066AA0CD25 /* VoiceAgentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAgentViewModel.swift; sourceTree = "<group>"; };
+		C05A9A6876CC108B7CEDFDFC /* TextChunkingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextChunkingTests.swift; sourceTree = "<group>"; };
 		C1BF0DC63344C51A046E37E0 /* OVExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OVExceptionCatcher.h; sourceTree = "<group>"; };
 		C1BFC8380B5BDA0778E04EAB /* GemmaSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaSettingsView.swift; sourceTree = "<group>"; };
 		C27052ECD2FFC79652B5CDB3 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -156,6 +172,7 @@
 		D2563E08B4723C4A8848A8A6 /* kokoro-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "kokoro-ios"; path = "Vendor/kokoro-ios"; sourceTree = SOURCE_ROOT; };
 		D416290774C17FDC0DDFBC68 /* TTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSService.swift; sourceTree = "<group>"; };
 		DA6DC62CBCB893C9A9922686 /* NativeTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTool.swift; sourceTree = "<group>"; };
+		DD3DFE96152AAE9145F104D6 /* LocalAgentRouteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAgentRouteTests.swift; sourceTree = "<group>"; };
 		DFBB8B07B4970CA5F63B3B2A /* GemmaLocalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaLocalService.swift; sourceTree = "<group>"; };
 		E553EFA930E3B93EEA8F0AB6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EAFCA981F220C3F978645D70 /* OpenClawSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawSettingsView.swift; sourceTree = "<group>"; };
@@ -283,6 +300,7 @@
 			isa = PBXGroup;
 			children = (
 				8601201988376029090B1EAA /* OpenVision.app */,
+				ACA3BB4BDC73148785327C9A /* OpenVisionTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -481,6 +499,7 @@
 			children = (
 				09EB633ED6C10098514FA100 /* OpenVision */,
 				792E8D9249D5790897D4615F /* OpenVision */,
+				FA1346C9AC741922A0BF6928 /* OpenVisionTests */,
 				8F12C1169529CE44B11137F4 /* Packages */,
 				36F672D5AB5BCE7D4C73AA30 /* Products */,
 			);
@@ -494,6 +513,16 @@
 				FFDF4A693D2CEB248757FBD3 /* OpenAIService.swift */,
 			);
 			path = AIBackend;
+			sourceTree = "<group>";
+		};
+		FA1346C9AC741922A0BF6928 /* OpenVisionTests */ = {
+			isa = PBXGroup;
+			children = (
+				DD3DFE96152AAE9145F104D6 /* LocalAgentRouteTests.swift */,
+				BE4D7E31C137C29246EB9281 /* NativeToolSupportTests.swift */,
+				C05A9A6876CC108B7CEDFDFC /* TextChunkingTests.swift */,
+			);
+			path = OpenVisionTests;
 			sourceTree = "<group>";
 		};
 		FCFDEAC4C8892533CE36C394 /* Components */ = {
@@ -520,6 +549,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		60AF4ED566AAE248296380F1 /* OpenVisionTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B8FE22B6BC7D413D7FE37269 /* Build configuration list for PBXNativeTarget "OpenVisionTests" */;
+			buildPhases = (
+				4082EAA7B9C9E911E29F7B44 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FEE2C9BAC679A38DEB8A254B /* PBXTargetDependency */,
+			);
+			name = OpenVisionTests;
+			packageProductDependencies = (
+			);
+			productName = OpenVisionTests;
+			productReference = ACA3BB4BDC73148785327C9A /* OpenVisionTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		9418DE699CD106BA6A8A4B7E /* OpenVision */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 96E4930B027D16605C94BBD2 /* Build configuration list for PBXNativeTarget "OpenVision" */;
@@ -558,6 +605,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					60AF4ED566AAE248296380F1 = {
+						DevelopmentTeam = "${DEVELOPMENT_TEAM}";
+						ProvisioningStyle = Automatic;
+					};
 					9418DE699CD106BA6A8A4B7E = {
 						DevelopmentTeam = "${DEVELOPMENT_TEAM}";
 						ProvisioningStyle = Automatic;
@@ -586,6 +637,7 @@
 			projectRoot = "";
 			targets = (
 				9418DE699CD106BA6A8A4B7E /* OpenVision */,
+				60AF4ED566AAE248296380F1 /* OpenVisionTests */,
 			);
 		};
 /* End PBXProject section */
@@ -627,6 +679,16 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4082EAA7B9C9E911E29F7B44 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DC6776A7CBFBB8E151FB6B85 /* LocalAgentRouteTests.swift in Sources */,
+				5F19226406CF5B705B57BACF /* NativeToolSupportTests.swift in Sources */,
+				361AD2F1AB7C557D47CD125D /* TextChunkingTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5B369180DFE2DD0B99684491 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -700,6 +762,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		FEE2C9BAC679A38DEB8A254B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9418DE699CD106BA6A8A4B7E /* OpenVision */;
+			targetProxy = 878FCA5E5ACF645CA2719186 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		00287CBDEB7CFD087BF2824B /* Release */ = {
@@ -815,6 +885,38 @@
 			};
 			name = Debug;
 		};
+		E9F5DBB20BF0D88457EE7E95 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenVision.app/OpenVision";
+			};
+			name = Release;
+		};
+		ECF159DE076BC45E2345A3C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenVision.app/OpenVision";
+			};
+			name = Debug;
+		};
 		EDC80FB50C117FAB5AC2A1AB /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C2FFA22452C8901C2424D466 /* Config.xcconfig */;
@@ -889,6 +991,15 @@
 			buildConfigurations = (
 				E7B1CE542521A664F8D122A2 /* Debug */,
 				00287CBDEB7CFD087BF2824B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B8FE22B6BC7D413D7FE37269 /* Build configuration list for PBXNativeTarget "OpenVisionTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ECF159DE076BC45E2345A3C9 /* Debug */,
+				E9F5DBB20BF0D88457EE7E95 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
