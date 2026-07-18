@@ -76,6 +76,16 @@ final class NativeToolRegistry {
     /// tell the user gracefully.
     func execute(name: String, args: [String: Any]) async -> String {
         guard let tool = tools[name] else { return "I don't have a tool called \(name)." }
+        var args = args
+        // Time sanity chokepoint (all backends pass through here): if the triggering utterance was
+        // clearly relative ("in 15 minutes", "15 minutes from now"), trust the transcript over the
+        // model's computed clock time. See NativeToolSupport.applyRelativeTimeGuard.
+        if ["calendar", "create_reminder"].contains(name) {
+            let command = await NativeToolContext.shared.recentCommand()
+            if let rel = NativeToolSupport.applyRelativeTimeGuard(&args, command: command) {
+                NSLog("[NativeTool] relative-time guard: overriding model time with %d min from utterance", rel)
+            }
+        }
         // Log the tool name and which parameters it received — NOT the values, which can be private
         // (note text, event titles, clipboard contents).
         NSLog("[NativeTool] ▶ %@ (%@)", name, args.keys.sorted().joined(separator: ", "))

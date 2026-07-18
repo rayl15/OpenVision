@@ -171,6 +171,9 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
                 // 2) Everything else → answer with a web-search-equipped session that PERSISTS
                 //    across turns, so the model keeps conversation context (follow-up questions
                 //    work) and calls web_search itself when it needs live info.
+                // Record the utterance so the tool registry's relative-time guard can override
+                // model-computed clock times ("15 minutes from now" is parsed from these words).
+                NativeToolContext.shared.set(command)
                 let session: LanguageModelSession
                 if let existing = answerSessionBox as? LanguageModelSession {
                     session = existing

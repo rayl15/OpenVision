@@ -4,7 +4,68 @@
 import Foundation
 import UserNotifications
 
+/// The user utterance that triggered the current model turn. Backends set it before invoking
+/// their model so the registry can sanity-check tool args against what the user actually said
+/// (see `NativeToolSupport.applyRelativeTimeGuard`). Entries expire — a tool call fired long
+/// after the last text command (e.g. a Gemini audio turn) must not match a stale utterance.
+@MainActor
+final class NativeToolContext {
+    static let shared = NativeToolContext()
+    private init() {}
+
+    private var command: String?
+    private var setAt = Date.distantPast
+
+    func set(_ command: String) {
+        self.command = command
+        self.setAt = Date()
+    }
+
+    /// The utterance, if one was recorded within the last two minutes.
+    func recentCommand() -> String? {
+        guard Date().timeIntervalSince(setAt) < 120 else { return nil }
+        return command
+    }
+}
+
 enum NativeToolSupport {
+
+    /// Minutes parsed from a clearly RELATIVE time phrase in the user's words, or nil.
+    /// Matches "in 15 minutes", "after 2 hours", "15 minutes from now", "20 min later",
+    /// "in an hour", "in half an hour". A bare "30 minutes" does NOT match — without a relative
+    /// marker it's likelier a duration ("book the room for 30 minutes").
+    static func relativeMinutes(in command: String) -> Int? {
+        let s = command.lowercased()
+        if s.range(of: #"\b(in|after) half an hour\b"#, options: .regularExpression) != nil { return 30 }
+        if s.range(of: #"\b(in|after) an hour\b"#, options: .regularExpression) != nil { return 60 }
+        // Marker before ("in/after N unit") or after ("N unit from now/later").
+        let pattern = #"\b(?:in|after)\s+(\d+)\s*(minute|min|hour|hr)s?\b|\b(\d+)\s*(minute|min|hour|hr)s?\s+(?:from now|later)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let m = regex.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) else { return nil }
+        for (numIdx, unitIdx) in [(1, 2), (3, 4)] {
+            guard let numRange = Range(m.range(at: numIdx), in: s),
+                  let unitRange = Range(m.range(at: unitIdx), in: s),
+                  let n = Int(s[numRange]) else { continue }
+            let isHours = s[unitRange].hasPrefix("h")
+            return isHours ? n * 60 : n
+        }
+        return nil
+    }
+
+    /// Deterministic time guard: when the user's own words are RELATIVE ("in 15 minutes",
+    /// "15 minutes from now"), rewrite the tool's time args to `minutes_from_now` parsed straight
+    /// from the utterance — overriding whatever absolute time the model computed. Models (small
+    /// ones especially) routinely do "now + 15" wrong; the transcript is ground truth. Returns
+    /// the parsed minutes when the override applied, for logging.
+    static func applyRelativeTimeGuard(_ args: inout [String: Any], command: String?) -> Int? {
+        guard let command, let rel = relativeMinutes(in: command) else { return nil }
+        for key in ["hour", "minute", "day_offset", "due_iso8601", "start_iso8601"] {
+            args.removeValue(forKey: key)
+        }
+        args["minutes_from_now"] = rel
+        return rel
+    }
+
     /// LLMs send numbers as Int, Double, or even String — coerce to Int.
     static func int(_ v: Any?) -> Int? {
         if let i = v as? Int { return i }

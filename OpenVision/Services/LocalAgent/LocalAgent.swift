@@ -88,6 +88,11 @@ enum LocalAgent {
         guard let output = await generate(system, history, command) else {
             return .answer("Sorry, I couldn't process that — please try again.")
         }
+        return await resolve(output, command: command)
+    }
+
+    /// Turn the model's raw output into a RouteResult (parse face/search/tool JSON, else answer).
+    private static func resolve(_ output: String, command: String) async -> RouteResult {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         NSLog("[OV] route(\"%@\") -> %@", command, String(trimmed.prefix(120)))
         if let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end,
@@ -111,6 +116,9 @@ enum LocalAgent {
                NativeToolRegistry.shared.isNativeTool(toolName) {
                 var toolArgs = obj
                 toolArgs.removeValue(forKey: "tool")
+                // The registry sanity-checks time args against the utterance (relative-time guard)
+                // — record it so "15 minutes from now" can override the model's clock math.
+                NativeToolContext.shared.set(command)
                 let toolResult = await NativeToolRegistry.shared.execute(name: toolName, args: toolArgs)
                 return .answer(toolResult)
             }

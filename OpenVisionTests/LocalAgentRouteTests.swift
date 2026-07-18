@@ -92,4 +92,36 @@ final class LocalAgentRouteTests: XCTestCase {
         }
         XCTAssertFalse(text.isEmpty)
     }
+
+    // MARK: - relativeMinutes: the deterministic "15 minutes from now" guard
+    // (Small models turn relative requests into wrong absolute clock times; the utterance is
+    // ground truth, so the router parses N itself and overrides the model's time args.)
+
+    func testRelativeMinutesMarkerBefore() {
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "Set up a focus event in 15 minutes"), 15)
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "remind me after 5 min"), 5)
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "in 2 hours please"), 120)
+    }
+
+    func testRelativeMinutesMarkerAfter() {
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "Set up a focus event on my calendar 15 minutes from now"), 15)
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "add a break 20 min later"), 20)
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "meeting 1 hour from now"), 60)
+    }
+
+    func testRelativeMinutesWordForms() {
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "remind me in an hour"), 60)
+        XCTAssertEqual(NativeToolSupport.relativeMinutes(in: "call mom in half an hour"), 30)
+    }
+
+    func testBareDurationIsNotRelative() {
+        // "for 30 minutes" is a DURATION — must not be misread as an offset.
+        XCTAssertNil(NativeToolSupport.relativeMinutes(in: "book the room at 6pm for 30 minutes"))
+        XCTAssertNil(NativeToolSupport.relativeMinutes(in: "a 25 minutes focus session at 3pm"))
+    }
+
+    func testClockTimeRequestIsNotRelative() {
+        XCTAssertNil(NativeToolSupport.relativeMinutes(in: "remind me to go to the gym at 6 pm"))
+        XCTAssertNil(NativeToolSupport.relativeMinutes(in: "add a meeting tomorrow at 9:30am"))
+    }
 }

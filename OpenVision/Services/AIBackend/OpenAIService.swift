@@ -33,6 +33,8 @@ final class OpenAIService: ObservableObject {
     /// Send a prompt (optionally with an image) and deliver the reply via `onAgentMessage`.
     func sendMessage(_ text: String, imageData: Data? = nil) async throws {
         guard settings.isOpenAIConfigured else { throw OpenAIError.notConfigured }
+        // Record the utterance for the tool registry's relative-time guard.
+        NativeToolContext.shared.set(text)
         guard let url = URL(string: "\(settings.openAIBaseURL)/chat/completions") else {
             throw OpenAIError.badURL
         }

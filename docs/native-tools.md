@@ -61,6 +61,15 @@ accept, in priority order (`NativeToolSupport.resolveDate`):
 Every backend's prompt steers time-of-day requests to `hour`/`minute` and relative requests to
 `minutes_from_now`, so times are exact on all four backends.
 
+**Relative-time guard (registry chokepoint).** Prompts alone don't stop a model from turning
+"15 minutes from now" into a self-computed (wrong) clock time. So `NativeToolRegistry.execute`
+sanity-checks calendar/reminder args against the user's actual words: each backend records the
+triggering utterance in `NativeToolContext` (expires after 2 min), and if it contains a clearly
+relative phrase ("in N minutes", "N minutes from now", "in an hour"), the registry parses N
+itself and replaces the model's time args with `minutes_from_now` — the transcript is ground
+truth. Bare durations ("for 30 minutes") deliberately don't match. See
+`NativeToolSupport.relativeMinutes` and its unit tests.
+
 ## Notifications & sound
 
 Timer/Pomodoro alerts fire even while the app is foregrounded via

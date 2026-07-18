@@ -273,6 +273,8 @@ final class GeminiLiveService: ObservableObject {
         guard connectionState.isUsable else {
             throw AIBackendError.notConnected
         }
+        // Record the utterance for the tool registry's relative-time guard.
+        NativeToolContext.shared.set(text)
 
         let message: [String: Any] = [
             "clientContent": [
