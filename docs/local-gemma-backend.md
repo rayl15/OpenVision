@@ -1,5 +1,36 @@
 # Local Gemma Backend (On-Device, MLX)
 
+> ## Update (2026-07): Gemma 4 E2B loading — shipped & resolved
+>
+> Gemma 4 E2B (`mlx-community/gemma-4-E2B-it-4bit`) now loads and runs on-device, including native
+> tool-calling (see [native-tools.md](native-tools.md)). Getting there uncovered a chain of
+> `mlx-swift-lm` issues — recorded here so nobody re-debugs them:
+>
+> 1. **`per_layer_model_projection` shape mismatch** (`[8960,192]` vs `[8960,1536]`) on 3.31.3 —
+>    fixed by moving to **3.31.4** (PR #309 makes that layer quantizable).
+> 2. **Load path.** E2B is a *multimodal* checkpoint (weights prefixed `language_model.`, plus
+>    vision/audio towers), so it must load via **`VLMModelFactory`**, not the text `LLMModelFactory`.
+>    It is text-only in OpenVision (`supportsOnDeviceVision == false`) — its image encoder blows the
+>    ~6 GB jetsam cap — but still loads through the VLM factory.
+> 3. **The real bug — shared-KV layers.** E2B's config sets `num_kv_shared_layers: 20`, so its last
+>    20 layers (15–34) reuse an earlier layer's K/V and ship **no** `k_proj`/`v_proj`/`k_norm`. The
+>    3.31.4 *tag*'s VLM backbone built those projections for **every** layer (never passed
+>    `kvSharedOnly`), so it demanded weights the checkpoint omits → `keyNotFound(... layers.15 ...)`.
+>    Fixed on a **main commit past the tag**: `68947cc` ("Fix MLXVLM Gemma4 loader to honor
+>    num_kv_shared_layers") passes `kvSharedOnly` per layer and guards the attention on
+>    `isKVSharedLayer`.
+>
+> **Pin:** `project.yml` pins `mlx-swift-lm` to the exact revision **`68947ccdca79…`** — *not* main
+> HEAD, because a later commit (#369) adopts a newer `mlx-swift` API (`greatestFiniteMagnitudeArray`)
+> that our pinned `mlx-swift` 0.31.4 (shared with the vendored Kokoro TTS) doesn't have. `68947cc` is
+> the sweet spot: it has the E2B fix but not the incompatible API bump.
+>
+> **Tool-calling** on the local backend is done via JSON-in-text in `LocalAgent.route` (the model
+> emits `{"tool":…}`), *not* Gemma 4's native `<|tool_call>` tokens — mlx-swift-lm can't parse those
+> yet ([issue #259](https://github.com/ml-explore/mlx-swift-lm/issues/259)).
+
+---
+
 Status: **Design / proposed** · Target device: **iPhone 17 Pro (A19 Pro, ~12GB RAM)**
 Decision: **Phase 1 targets Gemma 4 E2B** (`mlx-community/gemma-4-e2b-it-4bit`, ~3.6GB).
 Route: **B — official pinned `mlx-swift-lm 3.31.3` + our own Gemma 4 model port**, sourced from the

@@ -77,6 +77,13 @@ With **SmolVLM2** selected as your local model, **"Ok Vision, take a photo and t
 - Multi-turn context on the on-device and OpenAI backends: *"What's the capital of France?"* → *"What's **its** population?"* just works.
 - Bounded per session so local memory stays safe; Apple keeps context via a reused native session.
 
+### Hands-Free Productivity Tools
+- Run real actions by voice: **timers**, **Pomodoro** sessions, **reminders** (Apple Reminders), **calendar** events (read today/upcoming, add), **notes** (auto-tagged with place + time), and **copy to clipboard**.
+- Built on stable Apple frameworks (EventKit, UserNotifications, CoreLocation, UIPasteboard) — deterministic, no hallucination surface.
+- **Pixel-perfect times:** the *tool* does the date math, not the model. Say *"remind me at 6 PM"* and it lands at exactly 6:00 PM — even on the tiny on-device model.
+- One tool registry, **four backends**: OpenAI and Gemini Live (function-calling), Apple Intelligence (`Tool` protocol), and on-device Gemma 4 (JSON tool-calls) all share the same tools.
+- See [docs/native-tools.md](docs/native-tools.md) for the full design.
+
 ### On-Device Face Recognition (Apple Vision)
 - Teach it faces hands-free: *"Ok Vision, remember this person as Sara"*
 - Recognize them later: *"Ok Vision, who is this?"*
@@ -261,6 +268,10 @@ You: "Ok Vision, take a photo and tell me what this is"
 | "Forget Sara" / "Who do you know?" | Remove / list known faces |
 | "What's today's news?" / "Weather in Tokyo?" | Web search (on-device backends) |
 | "What's its population?" (as a follow-up) | Uses conversation memory |
+| "Set a 5 minute timer" / "Start a Pomodoro" | Timer / focus session ([native tools](docs/native-tools.md)) |
+| "Remind me to call mom at 6 PM" | Reminder in Apple Reminders (exact time) |
+| "Add a meeting tomorrow at 9:30am" / "What's on my calendar today?" | Calendar add / read |
+| "Note that I parked in lot B" / "Search my notes for parking" | Notes, auto-tagged with place + time |
 | "Start video stream" | Enter live video mode (Gemini / OpenAI Realtime / on-device SmolVLM2) |
 | "Stop video" | Exit live video mode |
 
