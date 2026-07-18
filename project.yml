@@ -97,7 +97,13 @@ packages:
     exactVersion: "0.4.0"
   mlx-swift-lm:
     url: https://github.com/ml-explore/mlx-swift-lm.git
-    exactVersion: "3.31.3"
+    # Pinned to a main commit PAST the 3.31.4 tag that fixes Gemma 4 E2B loading. 3.31.4's VLM backbone
+    # built k_proj/v_proj/k_norm for ALL layers (never passed kvSharedOnly), so E2B's shared-KV layers
+    # 15-34 demanded weights the checkpoint omits → keyNotFound. This commit ("Fix MLXVLM Gemma4 loader
+    # to honor num_kv_shared_layers") passes kvSharedOnly per layer + guards attention on isKVSharedLayer.
+    # NOT bumped to main HEAD: a later commit (#369) adopts a newer mlx-swift API (greatestFiniteMagnitudeArray)
+    # we don't have (mlx-swift is 0.31.4, shared with the vendored Kokoro), so we pin just before it.
+    revision: "68947ccdca79bcf7a26dc220f73caa060369513c"
   swift-huggingface:
     url: https://github.com/huggingface/swift-huggingface.git
     from: "0.1.0"

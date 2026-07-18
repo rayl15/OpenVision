@@ -91,7 +91,10 @@ enum GemmaLocalModel: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Vision models load via VLMModelFactory; text models via LLMModelFactory.
+    /// Vision models load via VLMModelFactory; text models via LLMModelFactory. Gemma 4 E2B is a
+    /// multimodal checkpoint (weights prefixed `language_model.`, plus vision/audio towers), so it
+    /// loads via VLMModelFactory — but only after registerGemma4TextType() swaps a shared-KV-aware
+    /// text backbone into the type registry (see loadModelContainer). Same recipe as OpenGlasses.
     var isVLM: Bool {
         switch self {
         case .e2b, .smolVLM2_2B, .fastVLM05B: return true
@@ -167,8 +170,8 @@ final class GemmaLocalService: ObservableObject {
     private var generationID = 0   // bumped per request; stale generations stay silent
     private var enteredBackgroundDuringGeneration = false
 
-    // mlx-swift-lm 3.31.3 ships a native Gemma 4 VLM (text + vision) registered in
-    // VLMModelFactory, so no custom model registration is needed.
+    // mlx-swift-lm 3.31.4 registers Gemma 4 only in VLMModelFactory, whose text backbone mishandles
+    // E-series shared-KV layers. We load Gemma 4 E2B as text instead — see registerGemma4TextType().
 
     // MARK: - SmolVLM preprocessor patch (vision memory cap)
 
@@ -374,6 +377,9 @@ final class GemmaLocalService: ObservableObject {
     private func loadModelContainer(modelId: String, progress: @escaping (Double) -> Void) async throws -> ModelContainer {
         let configuration = ModelConfiguration(id: modelId)
         let handler: (Progress) -> Void = { p in Task { @MainActor in progress(p.fractionCompleted) } }
+        // Register the shared-KV-aware Gemma 4 text backbone before loading. The multimodal VLM
+        // Gemma 4 wrapper builds its text tower from this same type registry, so E2B needs it too.
+        await Self.registerGemma4TextType()
         if GemmaLocalModel.isVLM(modelId: modelId) {
             return try await VLMModelFactory.shared.loadContainer(
                 from: #hubDownloader(), using: #huggingFaceTokenizerLoader(),
@@ -382,6 +388,23 @@ final class GemmaLocalService: ObservableObject {
             return try await LLMModelFactory.shared.loadContainer(
                 from: #hubDownloader(), using: #huggingFaceTokenizerLoader(),
                 configuration: configuration, progressHandler: handler)
+        }
+    }
+
+    /// Teach the LLM factory to build Gemma 4 (incl. E2B) as a pure text model. mlx-swift-lm only
+    /// registers `gemma4` in the *VLM* factory, whose text backbone mishandles E-series shared-KV
+    /// layers; the standalone `Gemma4TextModel` handles them. `Gemma4TextConfiguration` decodes
+    /// top-level keys and its defaults already equal E2B's text_config (hidden 1536, 35 layers,
+    /// 20 kv-shared, 256 per-layer input), so an E2B checkpoint that nests those under `text_config`
+    /// still yields correct params. Same fix OpenGlasses applies. Idempotent (map insert).
+    private static func registerGemma4TextType() async {
+        // Fully qualified: MLXVLM also exports Gemma4TextConfiguration/Gemma4TextModel, so the bare
+        // names are ambiguous — the LLM (text) types are the ones that handle shared-KV layers.
+        for type in ["gemma4", "gemma4_text"] {
+            await LLMTypeRegistry.shared.registerModelType(type) { data in
+                let config = try JSONDecoder().decode(MLXLLM.Gemma4TextConfiguration.self, from: data)
+                return MLXLLM.Gemma4TextModel(config)
+            }
         }
     }
 
