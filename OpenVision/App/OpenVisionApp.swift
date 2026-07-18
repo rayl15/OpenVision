@@ -19,6 +19,11 @@ struct OpenVisionApp: App {
     // MARK: - Initialization
 
     init() {
+        // Show timer/alarm notifications even when the app is in the foreground.
+        NotificationForegroundPresenter.shared.register()
+        // Create the location manager on the main thread + warm the cache for contextual notes.
+        LocationHelper.shared.prewarm()
+
         // Move the model store OUT of Caches before anything touches the hub. iOS may purge
         // Caches under storage pressure, which silently deleted downloaded model weights (the app
         // then re-downloaded ~GBs at "connecting…" time). Must run before any HubClient exists.

@@ -123,6 +123,16 @@
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>OpenVision can use your location to provide location-aware responses.</string>
 
+    <!-- Productivity tools -->
+    <key>NSCalendarsUsageDescription</key>
+    <string>OpenVision reads and adds calendar events when you ask by voice.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>OpenVision reads and adds calendar events when you ask by voice.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>OpenVision creates reminders when you ask by voice.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>OpenVision creates reminders when you ask by voice.</string>
+
     <!-- App Transport Security (allow WebSocket connections) -->
     <key>NSAppTransportSecurity</key>
     <dict>

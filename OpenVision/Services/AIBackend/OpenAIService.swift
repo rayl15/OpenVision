@@ -79,12 +79,15 @@ final class OpenAIService: ObservableObject {
             ]
         ]
 
+        // Web search + on-device productivity tools (timers, reminders, calendar, notes, clipboard…).
+        let tools = [webSearchTool] + NativeToolRegistry.shared.openAISpecs
+
         let maxIterations = 4
         for _ in 0..<maxIterations {
             let body: [String: Any] = [
                 "model": settings.openAIModel,
                 "messages": messages,
-                "tools": [webSearchTool],
+                "tools": tools,
                 "max_tokens": 400
             ]
             var request = URLRequest(url: url)
@@ -94,7 +97,7 @@ final class OpenAIService: ObservableObject {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
             request.timeoutInterval = 60
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await Self.dataWithRetry(for: request)
             guard let http = response as? HTTPURLResponse else { throw OpenAIError.noResponse }
             guard (200...299).contains(http.statusCode) else {
                 let detail = Self.errorMessage(from: data) ?? "HTTP \(http.statusCode)"
@@ -103,22 +106,27 @@ final class OpenAIService: ObservableObject {
             }
             guard let message = Self.firstMessage(from: data) else { throw OpenAIError.emptyReply }
 
-            // Tool calls → execute web_search, feed results back, loop.
+            // Tool calls → execute (web_search or a native tool), feed results back, loop.
             if let toolCalls = message["tool_calls"] as? [[String: Any]], !toolCalls.isEmpty {
                 messages.append(message)   // the assistant turn carrying tool_calls
                 for call in toolCalls {
                     let id = call["id"] as? String ?? ""
                     let fn = call["function"] as? [String: Any]
+                    let toolName = fn?["name"] as? String ?? ""
                     let argsStr = fn?["arguments"] as? String ?? "{}"
-                    let args = (try? JSONSerialization.jsonObject(with: Data(argsStr.utf8))) as? [String: Any]
-                    let query = (args?["query"] as? String) ?? ""
-                    NSLog("[OpenAI] web_search: \"%@\"", query)
-                    let result = await WebSearchService.search(query)
-                    messages.append([
-                        "role": "tool",
-                        "tool_call_id": id,
-                        "content": result.isEmpty ? "No results found for \"\(query)\"." : result
-                    ])
+                    let args = (try? JSONSerialization.jsonObject(with: Data(argsStr.utf8))) as? [String: Any] ?? [:]
+
+                    let result: String
+                    if toolName == "web_search" {
+                        let query = (args["query"] as? String) ?? ""
+                        NSLog("[OpenAI] web_search: \"%@\"", query)
+                        let r = await WebSearchService.search(query)
+                        result = r.isEmpty ? "No results found for \"\(query)\"." : r
+                    } else {
+                        NSLog("[OpenAI] native tool: %@", toolName)
+                        result = await NativeToolRegistry.shared.execute(name: toolName, args: args)
+                    }
+                    messages.append(["role": "tool", "tool_call_id": id, "content": result])
                 }
                 continue
             }
@@ -138,13 +146,30 @@ final class OpenAIService: ObservableObject {
 
     private func systemPrompt() -> String {
         // Keep replies short — they're spoken aloud. Append the user's custom instructions.
-        var parts = ["You are OpenVision, a helpful voice assistant for smart glasses. Answer conversationally and briefly (1-3 short sentences) since your reply is spoken aloud. If the user asks about current or real-time information, or anything you're not certain of, call the web_search tool and answer from its results — never say you can't access real-time data."]
+        let today = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime])
+        var parts = ["You are OpenVision, a helpful voice assistant for smart glasses. Answer conversationally and briefly (1-3 short sentences) since your reply is spoken aloud. If the user asks about current or real-time information, or anything you're not certain of, call the web_search tool and answer from its results — never say you can't access real-time data.",
+                     "You can also handle productivity hands-free by calling the matching tool: set_timer, start_pomodoro, create_reminder, calendar (read/add events), note (save/search notes auto-tagged with place and time), and copy_to_clipboard. For a specific time of day (e.g. '6pm', '9:30am') pass the tool's hour (24-hour) and minute, plus day_offset (0=today, 1=tomorrow) — let the tool do the date math. Use minutes_from_now only for 'in N minutes'. The current time is \(today).",
+                     "After a tool runs, briefly confirm what you did in one sentence."]
         let custom = settings.userPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !custom.isEmpty { parts.append(custom) }
         return parts.joined(separator: "\n\n")
     }
 
     // MARK: - Response parsing
+
+    /// Chat Completions can drop a keep-alive connection between the multiple round-trips of a
+    /// tool-calling loop (URLError -1005 "network connection lost", or a transient timeout). These
+    /// are almost always recoverable, so retry once on a fresh connection before surfacing an error.
+    private static func dataWithRetry(for request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await URLSession.shared.data(for: request)
+        } catch let error as URLError where
+            [.networkConnectionLost, .timedOut, .cannotConnectToHost, .cannotFindHost].contains(error.code) {
+            NSLog("[OpenAI] transient network error (%d) — retrying once", error.errorCode)
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            return try await URLSession.shared.data(for: request)
+        }
+    }
 
     /// The full assistant message dict (content and/or tool_calls) from a Chat Completions response.
     private static func firstMessage(from data: Data) -> [String: Any]? {

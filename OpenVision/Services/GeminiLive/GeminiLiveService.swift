@@ -196,7 +196,8 @@ final class GeminiLiveService: ObservableObject {
                     "turnCoverage": "TURN_INCLUDES_ALL_INPUT"
                 ],
                 "inputAudioTranscription": [:] as [String: Any],
-                "outputAudioTranscription": [:] as [String: Any]
+                "outputAudioTranscription": [:] as [String: Any],
+                "tools": buildToolDeclarations()
             ]
         ]
 
@@ -205,10 +206,15 @@ final class GeminiLiveService: ObservableObject {
 
     /// Build system prompt
     private func buildSystemPrompt() -> String {
+        let now = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime])
         var prompt = """
         You are a helpful AI assistant integrated with smart glasses. You can see what the user sees through their glasses camera.
 
         Keep responses concise and conversational - the user is wearing glasses and expects quick, natural interactions.
+
+        The current date and time is \(now) in the user's local time zone. Base any time on this.
+
+        You can handle productivity hands-free by calling the matching tool: set_timer, start_pomodoro, create_reminder, calendar (read/add events), note (save/search/list notes auto-tagged with place and time), and copy_to_clipboard. For a specific time of day (e.g. "6pm", "9:30am") pass the tool's hour (24-hour form) and minute, plus day_offset (0=today, 1=tomorrow) — let the tool do the date math. Use minutes_from_now only for "in N minutes / from now". After a tool runs, briefly confirm what you did in one sentence.
 
         If the user asks you to do something beyond your capabilities, explain what you can help with instead.
         """
@@ -231,10 +237,10 @@ final class GeminiLiveService: ObservableObject {
         return prompt
     }
 
-    /// Build tool declarations
+    /// Build tool declarations: the on-device productivity tools (timers, reminders, calendar,
+    /// notes, clipboard). Gemini nests function declarations under `tools: [{functionDeclarations:[…]}]`.
     private func buildToolDeclarations() -> [[String: Any]] {
-        // For Gemini Live, we can declare tools that OpenClaw can execute
-        return []
+        [["functionDeclarations": NativeToolRegistry.shared.geminiDeclarations]]
     }
 
     // MARK: - Send Audio
@@ -380,7 +386,7 @@ final class GeminiLiveService: ObservableObject {
 
         // Tool call
         if let toolCall = json["toolCall"] as? [String: Any] {
-            handleToolCall(toolCall)
+            await handleToolCall(toolCall)
             return
         }
 
@@ -454,10 +460,30 @@ final class GeminiLiveService: ObservableObject {
         }
     }
 
-    /// Handle tool call
-    private func handleToolCall(_ toolCall: [String: Any]) {
-        // For future: route tool calls to OpenClaw
-        print("[GeminiLive] Tool call received: \(toolCall)")
+    /// Handle a tool call from Gemini: run each requested native tool and send the results back as a
+    /// `toolResponse` so the model can speak a grounded confirmation in the same turn.
+    private func handleToolCall(_ toolCall: [String: Any]) async {
+        guard let calls = toolCall["functionCalls"] as? [[String: Any]], !calls.isEmpty else {
+            print("[GeminiLive] toolCall with no functionCalls: \(toolCall)")
+            return
+        }
+
+        var responses: [[String: Any]] = []
+        for call in calls {
+            guard let name = call["name"] as? String else { continue }
+            let args = call["args"] as? [String: Any] ?? [:]
+            let result = await NativeToolRegistry.shared.execute(name: name, args: args)
+            var response: [String: Any] = ["name": name, "response": ["result": result]]
+            if let id = call["id"] as? String { response["id"] = id }  // echo id so Gemini pairs the response
+            responses.append(response)
+        }
+
+        guard !responses.isEmpty else { return }
+        do {
+            try await sendJSON(["toolResponse": ["functionResponses": responses]])
+        } catch {
+            print("[GeminiLive] Failed to send toolResponse: \(error)")
+        }
     }
 
     /// Handle disconnect

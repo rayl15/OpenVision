@@ -137,8 +137,12 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
     When unsure, choose "other". Only pick a face action when the user clearly means a person physically present.
     """
 
-    private static let assistantInstructions = """
+    private static func assistantInstructions() -> String {
+        let now = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime])
+        return """
     You are OpenVision, a helpful voice assistant for smart glasses. Answer briefly (1-3 short sentences) since your reply is spoken aloud.
+
+    The current date and time is \(now) in the user's local time zone. For a specific time of day (e.g. "6pm", "9:30am") pass the tool's hour (24-hour form) and minute, plus day_offset (0=today, 1=tomorrow) — let the tool do the date math. Use minutes_from_now only for "in N minutes / from now". Never compute an absolute date yourself.
 
     You have a web_search tool with live internet access. Use it whenever EITHER is true:
     - the user asks about current or real-time information (news, weather, prices, sports scores, recent events), OR
@@ -147,7 +151,10 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
     NEVER tell the user you don't know, that you can't help, or that your knowledge ends at a past date. Always run web_search first and answer from the results. Prefer searching over guessing. Only answer directly, without searching, when you are genuinely confident the information is stable and well-known (e.g. math, definitions, general facts).
 
     CRITICAL: web_search returns its results immediately, inside this same reply. You must read those results and give the final answer now. NEVER say you will search "later", "shortly", "in a moment", or provide the answer "once it's available" — there is no later; this is your only turn. If the search returns nothing useful, simply say you couldn't find that right now — do not promise to follow up.
+
+    You can also handle productivity hands-free by calling the matching tool: set_timer, start_pomodoro, create_reminder, calendar (read/add events), note (save/search/list notes auto-tagged with place and time), and copy_to_clipboard. After a tool runs, briefly confirm what you did in one sentence.
     """
+    }
 
     func routeCommand(_ command: String) async -> LocalAgent.RouteResult {
         #if canImport(FoundationModels)
@@ -168,14 +175,16 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
                 if let existing = answerSessionBox as? LanguageModelSession {
                     session = existing
                 } else {
-                    session = LanguageModelSession(tools: [AppleWebSearchTool()], instructions: Self.assistantInstructions)
+                    var tools: [any Tool] = [AppleWebSearchTool()]
+                    tools.append(contentsOf: AppleNativeTools.all)
+                    session = LanguageModelSession(tools: tools, instructions: Self.assistantInstructions())
                     answerSessionBox = session
                 }
                 let response = try await session.respond(to: command)
                 return .answer(response.content)
             } catch {
                 NSLog("[OV] Apple route failed: %@", "\(error)")
-                let answer = await generate(system: Self.assistantInstructions, user: command)
+                let answer = await generate(system: Self.assistantInstructions(), user: command)
                 return .answer(answer ?? "Sorry, I couldn't answer that right now.")
             }
         }

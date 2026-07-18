@@ -26,6 +26,7 @@ enum LocalAgent {
     /// ONE generation that either routes a face command, requests a web search, or answers directly.
     /// `history` gives the model recent turns so follow-up questions work.
     static func route(_ command: String, history: [ConversationContext.Turn], generate: Generate) async -> RouteResult {
+        let now = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime])
         let system = """
         You are a voice assistant for smart glasses that can recognize faces the user has taught you.
 
@@ -59,7 +60,28 @@ enum LocalAgent {
         User: what's the price of bitcoin → {"tool":"web_search","query":"bitcoin price"}
         User: who is the CEO of a small startup you don't know → {"tool":"web_search","query":"CEO of that startup"}
 
-        Only answer directly (no search) when you are genuinely confident it's stable, well-known info — math, definitions, general facts. Then answer in 1-3 short sentences. Do NOT mention faces, tools, or JSON.
+        You can also perform on-device actions. When the user clearly wants one, reply with ONLY one JSON object and nothing else:
+        - Timer: {"tool":"set_timer","seconds":300,"label":"pasta"}   (label optional)
+        - Pomodoro: {"tool":"start_pomodoro"}
+        - Reminder (clock time): {"tool":"create_reminder","title":"call mom","hour":17}
+        - Reminder (relative): {"tool":"create_reminder","title":"leave","minutes_from_now":20}
+        - Calendar add (clock time): {"tool":"calendar","action":"add","title":"Focus","hour":15,"duration_minutes":25}
+        - Calendar read: {"tool":"calendar","action":"today"}   (or "upcoming")
+        - Note save: {"tool":"note","action":"save","content":"parked in lot B"}
+        - Note search: {"tool":"note","action":"search","query":"parking"}
+        - Copy text: {"tool":"copy_to_clipboard","text":"the text to copy"}
+        TIME RULES (the tool does the date math — never compute a date or minute count yourself):
+        - A specific time of day like "6pm", "9:30am", "at 6" → give "hour" in 24-hour form (6pm=18, 9am=9) and "minute" if any; add "day_offset":1 for tomorrow.
+        - Only "in N minutes/hours from now" → give "minutes_from_now". The current time is \(now).
+        Action examples:
+        User: set a 5 minute timer → {"tool":"set_timer","seconds":300}
+        User: remind me to go to the gym at 6pm → {"tool":"create_reminder","title":"go to the gym","hour":18}
+        User: remind me to leave in 20 minutes → {"tool":"create_reminder","title":"leave","minutes_from_now":20}
+        User: add a meeting tomorrow at 9:30am → {"tool":"calendar","action":"add","title":"meeting","hour":9,"minute":30,"day_offset":1}
+        User: what's on my calendar today → {"tool":"calendar","action":"today"}
+        User: note that I parked in lot B → {"tool":"note","action":"save","content":"parked in lot B"}
+
+        Only answer directly (no search or action) when you are genuinely confident it's stable, well-known info — math, definitions, general facts. Then answer in 1-3 short sentences. Do NOT mention faces, tools, or JSON.
 
         You DO have conversation memory: the earlier messages in this chat are your record of the conversation so far. Use them for follow-ups — e.g. for "what were we talking about?" summarize those earlier messages; for "what about X?" resolve it against the previous topic. Never claim you can't remember when earlier messages exist.
         """
@@ -80,6 +102,17 @@ enum LocalAgent {
                let query = (obj["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !query.isEmpty {
                 return .webSearch(query)
+            }
+            // On-device productivity tool (timer, reminder, calendar, note, clipboard, pomodoro).
+            // The tiny model emits the same JSON-in-text shape it uses for faces/search; we run the
+            // tool via the shared registry and speak its result. (Gemma 4's native <|tool_call> tokens
+            // aren't parsed by mlx-swift-lm 3.31.3 yet — issue #259 — so we keep the proven JSON path.)
+            if let toolName = (obj["tool"] as? String)?.lowercased(),
+               NativeToolRegistry.shared.isNativeTool(toolName) {
+                var toolArgs = obj
+                toolArgs.removeValue(forKey: "tool")
+                let toolResult = await NativeToolRegistry.shared.execute(name: toolName, args: toolArgs)
+                return .answer(toolResult)
             }
         }
         return .answer(trimmed)

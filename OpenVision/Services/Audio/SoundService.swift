@@ -92,6 +92,19 @@ final class SoundService: ObservableObject {
         }
     }
 
+    /// Play an alert chime for timers/alarms — via the app's active AVAudioPlayer session, so it's
+    /// audible even in silent mode and routes to the glasses. Notification sounds get suppressed while
+    /// our audio session is active, so we play our own. Unconditional (a timer must be heard).
+    func playAlert() {
+        ensureSoundsReady()
+        if let player = wakeWordPlayer {
+            player.currentTime = 0
+            player.play()
+        } else if wakeWordSoundID != 0 {
+            AudioServicesPlaySystemSound(wakeWordSoundID)
+        }
+    }
+
     // MARK: - Thinking Sound
 
     func startThinkingSound() {
