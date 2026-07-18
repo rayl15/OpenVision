@@ -328,6 +328,8 @@ Face recognition, web search, and conversation memory all run on the **on-device
 
 ## Architecture
 
+> Deep dive (MVVM, the `AIBackend` seam, how to add a backend or tool, tests): [docs/architecture.md](docs/architecture.md)
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        OpenVision App                           │

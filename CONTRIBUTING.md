@@ -61,10 +61,15 @@ func capPh() -> Data?
 
 ### Architecture Patterns
 
+See [docs/architecture.md](docs/architecture.md) for the full map — layout, MVVM, the
+`AIBackend` seam, and step-by-step guides for adding a backend or a native tool.
+
+- **MVVM**: Views render and forward interactions; ViewModels (`@MainActor ObservableObject`) orchestrate
 - **@MainActor**: Use for all UI-related code and managers
 - **Singleton pattern**: For shared managers (SettingsManager, GlassesManager)
-- **Protocol-oriented**: Define protocols for testability
+- **Protocol-oriented**: New backends conform to `AIBackend`; new tools to `NativeTool`
 - **Async/await**: Prefer over completion handlers
+- **Tests**: Pure logic (date math, routing, parsing) belongs in testable enums/functions with unit tests in `OpenVisionTests`
 
 ```swift
 // GOOD: @MainActor isolation
