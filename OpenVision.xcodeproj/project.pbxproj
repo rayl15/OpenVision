@@ -71,6 +71,7 @@
 		CB6636C853387785316153FD /* ReminderTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356A075E2D281F1FF15A67C3 /* ReminderTool.swift */; };
 		CDA89E5AAAF25713C6321971 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 266032AAD0DF8037A64CAB15 /* MainTabView.swift */; };
 		D78274C690CE91F7747815F8 /* thinking_loop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3846720B6096149DBB5ED5A9 /* thinking_loop.mp3 */; };
+		D8F7D3BE11230D5DE55E8D18 /* VoiceAgentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEDCA2C462B77066AA0CD25 /* VoiceAgentViewModel.swift */; };
 		DB74FBBD6B28327F7C12D1CA /* ConversationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6C681A43DB7DFF78CFE722 /* ConversationContext.swift */; };
 		DBAD28D914AC862DB5E6F367 /* ConversationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BCCC84E6880175BD83F37FD /* ConversationManager.swift */; };
 		DCA893B0F4EB539CA4C1EC00 /* AppleNativeTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDBE980F673E3077B58977E5 /* AppleNativeTools.swift */; };
@@ -138,6 +139,7 @@
 		B2FD4A9B156D92B468B28864 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		BDBE980F673E3077B58977E5 /* AppleNativeTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleNativeTools.swift; sourceTree = "<group>"; };
 		BE848862D72446F7BBDD3D89 /* KokoroTTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KokoroTTSService.swift; sourceTree = "<group>"; };
+		BEEDCA2C462B77066AA0CD25 /* VoiceAgentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAgentViewModel.swift; sourceTree = "<group>"; };
 		C1BF0DC63344C51A046E37E0 /* OVExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OVExceptionCatcher.h; sourceTree = "<group>"; };
 		C1BFC8380B5BDA0778E04EAB /* GemmaSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaSettingsView.swift; sourceTree = "<group>"; };
 		C27052ECD2FFC79652B5CDB3 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -331,6 +333,7 @@
 			isa = PBXGroup;
 			children = (
 				601D21AA8114E457F40C6C4A /* VoiceAgentView.swift */,
+				BEEDCA2C462B77066AA0CD25 /* VoiceAgentViewModel.swift */,
 			);
 			path = VoiceAgent;
 			sourceTree = "<group>";
@@ -687,6 +690,7 @@
 				7A0FECD93C32597CA6659BC9 /* TimerTool.swift in Sources */,
 				BFD9D5E86289F987AC6931B8 /* TranscriptBubble.swift in Sources */,
 				8BB3557D9BE4E9F2399BDBC1 /* VoiceAgentView.swift in Sources */,
+				D8F7D3BE11230D5DE55E8D18 /* VoiceAgentViewModel.swift in Sources */,
 				342B57112073CFC14CD78614 /* VoiceCommandService.swift in Sources */,
 				3A3AC3A91A768EAE0B643B95 /* VoiceSelectionView.swift in Sources */,
 				79C519EDCA508C00DAAB1F6E /* VoiceSettingsView.swift in Sources */,
