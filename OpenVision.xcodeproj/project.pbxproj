@@ -35,6 +35,7 @@
 		456B4E46EE405F5C8F45B04D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABBF4AC21A442A2C3CF6750 /* Theme.swift */; };
 		49DFBFFE52D341E96BCE382E /* AppleFoundationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B97C063C947F53F6E209D1 /* AppleFoundationService.swift */; };
 		4DFF630E56769253493B4B57 /* NotificationForegroundPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4831CE885B0320D9CAD71736 /* NotificationForegroundPresenter.swift */; };
+		529CAD92EEAB3567C51769E6 /* OpenClawDeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E9830333CA08F4DA42A994 /* OpenClawDeviceIdentity.swift */; };
 		52E3A16AB6227CDA3D67817D /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2FD4A9B156D92B468B28864 /* AppSettings.swift */; };
 		53B484EF0A2017B9718AC548 /* WebSearchSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71ACC88CE5E9E799ED607853 /* WebSearchSettingsView.swift */; };
 		53C17BBA774E7D3D4E295584 /* LocalAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE6F61B22736F87248FD0F5 /* LocalAgent.swift */; };
@@ -186,6 +187,7 @@
 		BE848862D72446F7BBDD3D89 /* KokoroTTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KokoroTTSService.swift; sourceTree = "<group>"; };
 		BEEDCA2C462B77066AA0CD25 /* VoiceAgentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAgentViewModel.swift; sourceTree = "<group>"; };
 		C05A9A6876CC108B7CEDFDFC /* TextChunkingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextChunkingTests.swift; sourceTree = "<group>"; };
+		C0E9830333CA08F4DA42A994 /* OpenClawDeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawDeviceIdentity.swift; sourceTree = "<group>"; };
 		C1BF0DC63344C51A046E37E0 /* OVExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OVExceptionCatcher.h; sourceTree = "<group>"; };
 		C1BFC8380B5BDA0778E04EAB /* GemmaSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaSettingsView.swift; sourceTree = "<group>"; };
 		C27052ECD2FFC79652B5CDB3 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -463,6 +465,7 @@
 		867CD5E802B9354B21C23D0B /* OpenClaw */ = {
 			isa = PBXGroup;
 			children = (
+				C0E9830333CA08F4DA42A994 /* OpenClawDeviceIdentity.swift */,
 				7946C8232CEA5A362056AC2A /* OpenClawProtocol.swift */,
 				C539AB340611B1A6CCC50F17 /* OpenClawService.swift */,
 			);
@@ -702,7 +705,6 @@
 				};
 			};
 			buildConfigurationList = F2E191267E52B7178955EEDB /* Build configuration list for PBXProject "OpenVision" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -721,11 +723,12 @@
 				A8456994C4E280FE9D1FCB59 /* XCLocalSwiftPackageReference "Vendor/kokoro-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 36F672D5AB5BCE7D4C73AA30 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9418DE699CD106BA6A8A4B7E /* OpenVision */,
 				60AF4ED566AAE248296380F1 /* OpenVisionTests */,
+				9418DE699CD106BA6A8A4B7E /* OpenVision */,
 			);
 		};
 /* End PBXProject section */
@@ -837,6 +840,7 @@
 				A17626C4B92966423AF06452 /* OpenAIRealtimeService.swift in Sources */,
 				223474C328BCC3C81ADCB93D /* OpenAIService.swift in Sources */,
 				800BD44B75446351A267E190 /* OpenAISettingsView.swift in Sources */,
+				529CAD92EEAB3567C51769E6 /* OpenClawDeviceIdentity.swift in Sources */,
 				C3B4CF9D8B6EC21957CC7BEF /* OpenClawProtocol.swift in Sources */,
 				186FD72F369F1962B15EB858 /* OpenClawService.swift in Sources */,
 				758F66B632E8A1CBDBB40094 /* OpenClawSettingsView.swift in Sources */,

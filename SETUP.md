@@ -247,6 +247,21 @@ Once the app is running:
    - **Auth Token**: Your OpenClaw authentication token
 5. Tap **Test Connection** to verify
 
+**If the gateway is on your local network** (not localhost), it will not grant
+the app write access on a token alone — `chat.send` fails with
+`missing scope: operator.write`. The app presents a signed device identity, and
+the gateway holds it as a pairing request until you approve it once, on the
+machine running the gateway:
+
+```bash
+openclaw devices list                  # find the pending request id
+openclaw devices approve <requestId>
+```
+
+The first connection is expected to fail with "pairing required: device is not
+approved yet". Approve it, and the app connects on the next attempt. The app's
+key is stored in the Keychain, so this is a one-time step per device.
+
 ### Gemini Live Setup
 
 1. Go to **Settings → AI Backend**
