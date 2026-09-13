@@ -1934,8 +1934,15 @@ final class VoiceAgentViewModel: ObservableObject {
             await glassesManager.startStreaming()
         }
         // Wait for a NEW frame (clear first so we don't reuse a stale one).
+        //
+        // Timing note (2026-09-13): the first frame is NOT "available immediately" on a cold
+        // camera. Measured on Ray-Ban Meta with current glasses-side DAT software, a capture
+        // from cold exhausted this first window every time and only succeeded in the post-restart
+        // window below — i.e. it was passing by about a second. Widened from ~2.5s to ~6s so a
+        // cold start succeeds on the first attempt instead of relying on the restart path.
+        // Cost when the camera is already warm is nil: the loop returns as soon as a frame lands.
         glassesManager.lastFrame = nil
-        for _ in 0..<25 { // up to ~2.5s
+        for _ in 0..<60 { // up to ~6s (cold-start first frame)
             if let f = glassesManager.lastFrame {
                 NSLog("[OV] fresh live frame acquired")
                 return f.jpegData(compressionQuality: 0.8)
@@ -1948,7 +1955,7 @@ final class VoiceAgentViewModel: ObservableObject {
         try? await Task.sleep(nanoseconds: 400_000_000)
         await glassesManager.startStreaming()
         glassesManager.lastFrame = nil
-        for _ in 0..<30 { // up to ~3s
+        for _ in 0..<80 { // up to ~8s (restarted stream, still cold)
             if let f = glassesManager.lastFrame {
                 NSLog("[OV] fresh live frame acquired after restart")
                 return f.jpegData(compressionQuality: 0.8)
