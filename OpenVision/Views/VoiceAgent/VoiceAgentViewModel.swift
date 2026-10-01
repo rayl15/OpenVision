@@ -10,6 +10,38 @@
 import SwiftUI
 import Speech
 
+/// Phrasings that mean "describe what I am looking at".
+///
+/// Deliberately ONE list. Three call sites previously carried three drifting copies — the
+/// imageless-model guard, the photo-capture trigger, and the watch-loop fast path — and they
+/// disagreed about which phrasings counted. A phrasing missing from the capture list is not a
+/// cosmetic miss: no frame is grabbed, the bare text reaches the agent, and the agent answers
+/// from whatever camera it *does* have. On this setup "what do I see" reached the OpenClaw
+/// agent with no image and came back complaining it could not connect to the Reachy Mini,
+/// which looked like a glasses fault and was not one.
+///
+/// Pronoun variants are the trap worth remembering: the wearer says "what do **I** see" at
+/// least as often as "what do **you** see", and the recogniser renders the latter as
+/// "what can I see". Keep all four.
+enum VisionPhrase {
+    /// Bare "describe the scene" questions — no specific detail requested.
+    /// Must contain no "photo"/"picture" wording: the localGemma guard below keys off that.
+    static let generic: [String] = [
+        "what do you see", "what do i see", "what can i see", "what can you see",
+        "what am i seeing", "what am i looking at", "what are you looking at",
+        "what's in front of me", "what is in front of me", "what's in front", "what is in front",
+        "describe what you see", "describe the view", "describe the scene",
+    ]
+
+    /// Everything that should trigger a frame capture: the generic questions, plus deictic
+    /// and explicit-capture phrasings. Superset of `generic`.
+    static let capture: [String] = generic + [
+        "take a photo", "take a picture", "take photo", "take picture",
+        "capture a photo", "capture photo", "snap a photo", "snap a picture",
+        "look at this", "what is this", "can you see",
+    ]
+}
+
 @MainActor
 final class VoiceAgentViewModel: ObservableObject {
 
@@ -873,10 +905,7 @@ final class VoiceAgentViewModel: ObservableObject {
         // this catches the bare "what do you see" style, which has no image source outside live
         // mode, and answers with guidance instead of poisoning the session.
         if !isLiveVideoMode, settingsManager.settings.aiBackend == .localGemma {
-            let visionPhrases = ["what do you see", "what am i looking at", "what are you looking at",
-                                 "what's in front of me", "what is in front of me",
-                                 "describe what you see", "describe the view", "describe the scene"]
-            if visionPhrases.contains(where: { lowerCommand.contains($0) }),
+            if VisionPhrase.generic.contains(where: { lowerCommand.contains($0) }),
                !lowerCommand.contains("photo") && !lowerCommand.contains("picture") {
                 NSLog("[OV] vision question outside live mode — guiding instead of imageless model call")
                 speakResponse("I can't see anything right now. Say 'take a photo' for a quick look, or 'start live video' and I'll watch continuously.")
@@ -934,13 +963,7 @@ final class VoiceAgentViewModel: ObservableObject {
 
         // Check if this is a vision-related command
         // Keywords for "take a photo" - capture and send to OpenClaw
-        let photoKeywords = ["take a photo", "take a picture", "take photo", "take picture",
-                            "capture a photo", "capture photo", "snap a photo", "snap a picture",
-                            "what do you see", "what are you looking at", "look at this",
-                            "what's in front of me", "describe what you see", "what is this",
-                            "what am i looking at", "can you see"]
-
-        let isPhotoCommand = photoKeywords.contains { lowerCommand.contains($0) }
+        let isPhotoCommand = VisionPhrase.capture.contains { lowerCommand.contains($0) }
 
         // Drive whichever backend is selected through the AIBackend protocol — capabilities
         // (localLLM, supportsImageInput) decide the path, not concrete service types.
@@ -1176,13 +1199,10 @@ final class VoiceAgentViewModel: ObservableObject {
         // perception: the answer was computed before the question. Specific questions (colors,
         // text, counting, "is there a…") still run a real vision turn on the current frame.
         // Deterministic phrase check, per the standing small-model-routing lesson.
-        let genericLook = ["what do you see", "what's in front", "what is in front",
-                           "describe what you see", "what am i looking at", "describe the view",
-                           "describe the scene"]
         let lowered = command.lowercased()
         if let latest = watchLatestDescription,
            Date().timeIntervalSince(latest.at) < 15,
-           genericLook.contains(where: { lowered.contains($0) }),
+           VisionPhrase.generic.contains(where: { lowered.contains($0) }),
            // The gate that matters: the CURRENT frame must still show the scene the cached
            // description was made from. Age alone lied — after a head-turn the cache stays
            // temporally fresh while describing the previous scene, which produced instant,
