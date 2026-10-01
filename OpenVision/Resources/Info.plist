@@ -142,6 +142,19 @@
         <true/>
     </dict>
 
+    <!-- Local network access. ATS above only permits cleartext; reaching a LAN
+         address at all needs this separate privacy consent, and without the
+         string iOS blocks the connection outright rather than prompting. The
+         OpenClaw backend talks to a gateway on the same network, so it cannot
+         connect without this. _bonjour._tcp is what the Device Access Toolkit
+         requires for Wi-Fi streaming from the glasses. -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>OpenVision connects to the OpenClaw assistant running on your own computer over your local network, and streams video from your glasses over Wi-Fi.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_bonjour._tcp</string>
+    </array>
+
     <!-- Wearables Device Access Toolkit configuration -->
     <key>MWDAT</key>
     <dict>

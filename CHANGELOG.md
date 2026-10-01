@@ -5,6 +5,13 @@ All notable changes to OpenVision will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **OpenClaw backend can now reach a gateway on the local network.** Previously only a gateway on localhost worked: the handshake negotiated protocol 3 (current gateways speak 4), sent no role or scopes, and presented no device identity — so `chat.send` failed with `missing scope: operator.write` even though the connection itself succeeded. The app now signs an Ed25519 device identity (persisted in the Keychain) that the gateway holds as a pairing request; approve it once with `openclaw devices approve <requestId>`. See SETUP.md
+- Reconnecting to an OpenClaw gateway no longer fails with `device nonce mismatch`. Each socket gets its own `connect.challenge` nonce and the signature covers it, so caching the first one meant the initial connection after launch succeeded and every reconnect afterwards failed
+- Added `NSLocalNetworkUsageDescription`, without which iOS silently blocks connections to a LAN gateway rather than prompting for consent
+
 ## [2.11.0] - 2026-08-15
 
 ### Added

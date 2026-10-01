@@ -85,6 +85,9 @@ final class OpenClawService: ObservableObject {
     private var requestCounter: Int = 0
     private var pendingRequests: [String: CheckedContinuation<OpenClawResponse, Error>] = [:]
     private var receiveTask: Task<Void, Never>?
+    /// Nonce from the server's connect.challenge, needed to sign the device identity.
+    private var challengeNonce: String?
+    private var challengeWaiter: CheckedContinuation<String, Never>?
 
     // MARK: - Reconnection
 
@@ -220,6 +223,11 @@ final class OpenClawService: ObservableObject {
         closeWebSocket()
         requestCounter = 0
         failPendingRequests(error: AIBackendError.notConnected)
+
+        // Every socket gets its own connect.challenge nonce. Carrying one over
+        // from a previous socket makes the gateway reject the handshake with
+        // "device nonce mismatch", so each attempt must wait for a fresh one.
+        challengeNonce = nil
 
         guard !Task.isCancelled else { return }
 
@@ -358,12 +366,39 @@ final class OpenClawService: ObservableObject {
 
     // MARK: - Handshake
 
+    /// Wait briefly for the server's connect.challenge nonce. The socket is
+    /// already receiving by the time the handshake is built, so this normally
+    /// returns immediately.
+    private func waitForChallengeNonce() async -> String? {
+        if let nonce = challengeNonce { return nonce }
+        return await withTaskGroup(of: String?.self) { group in
+            group.addTask { [weak self] in
+                await withCheckedContinuation { (c: CheckedContinuation<String, Never>) in
+                    Task { @MainActor in
+                        if let existing = self?.challengeNonce { c.resume(returning: existing) }
+                        else { self?.challengeWaiter = c }
+                    }
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+
     /// Send initial connect handshake
     private func sendHandshake() async throws {
         // Match xmeta's handshake format exactly
-        let params: [String: Any] = [
-            "minProtocol": 3,
-            "maxProtocol": 3,
+        var params: [String: Any] = [
+            // Protocol 4: this gateway (OpenClaw 2026.7.1-2) sets
+            // MIN_CLIENT_PROTOCOL_VERSION = 4 and rejects a 3/3 offer outright with
+            // PROTOCOL_MISMATCH, so the shipped values cannot connect to it.
+            "minProtocol": 4,
+            "maxProtocol": 4,
             "client": [
                 "id": "cli",
                 "displayName": "OpenVision",
@@ -372,10 +407,29 @@ final class OpenClawService: ObservableObject {
                 "mode": "cli"
             ],
             "caps": [String](), // Empty array like xmeta
+            // Without these the handshake still succeeds, but every chat.send is
+            // rejected with "missing scope: operator.write" -- the gateway grants
+            // no write scope to a connection that requests none.
+            "role": "operator",
+            "scopes": ["operator.read", "operator.write"],
             "auth": ["token": authToken],
             "locale": "en-US",
             "userAgent": "OpenVision/1.0.0"
         ]
+
+        // A connection from another host is granted no write scope on a token
+        // alone, so sign a device identity with the challenge nonce. First run
+        // returns PAIRING_REQUIRED until the device is approved once on the
+        // gateway host with: openclaw devices approve <requestId>
+        if let nonce = await waitForChallengeNonce(),
+           let device = OpenClawDeviceIdentity.deviceParams(
+               clientId: "cli", clientMode: "cli", role: "operator",
+               scopes: ["operator.read", "operator.write"],
+               token: authToken, nonce: nonce) {
+            params["device"] = device
+        } else {
+            print("[OpenClaw] no challenge nonce — connecting without device identity")
+        }
 
         let response = try await sendRequest(method: .connect, params: params)
 
@@ -683,7 +737,16 @@ final class OpenClawService: ObservableObject {
                 print("[OpenClaw] Chat state: \(state)")
             }
 
-        case "connect.challenge", "tick", "presence", "health":
+        case "connect.challenge":
+            // The nonce is required to sign the device identity; without it a
+            // remote connection gets no operator.write scope.
+            if let nonce = payload["nonce"]?.stringValue {
+                challengeNonce = nonce
+                challengeWaiter?.resume(returning: nonce)
+                challengeWaiter = nil
+            }
+
+        case "tick", "presence", "health":
             // Ignore these events
             break
 

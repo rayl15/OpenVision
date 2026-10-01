@@ -133,6 +133,14 @@ packages:
     # NOT bumped to main HEAD: a later commit (#369) adopts a newer mlx-swift API (greatestFiniteMagnitudeArray)
     # we don't have (mlx-swift is 0.31.4, shared with the vendored Kokoro), so we pin just before it.
     revision: "68947ccdca79bcf7a26dc220f73caa060369513c"
+    # FoundationModelsIntegration is default-ON and pulls in MLXFoundationModels, whose
+    # MLXLanguageModel adapter does not compile against the iOS/macOS 27 SDK (SamplingMode's
+    # .top/.nucleus cases lost an associated value, so `case .nucleus(let t, _)` is rejected).
+    # We never use that adapter — nothing here imports MLXLanguageModel/MLXFoundationModels;
+    # our `import FoundationModels` usages talk to Apple's framework directly. Turning the
+    # trait off compiles MLXFoundationModels to an empty library, which is exactly what the
+    # package documents for consumers that only need MLXLLM / MLXVLM / MLXLMCommon.
+    traits: []
   # CoreML Silero VAD (Apache 2.0). Gives us ACOUSTIC end-of-speech detection: the endpoint
   # countdown can start when the mic actually goes quiet instead of when SFSpeechRecognizer stops
   # emitting partials (which it does in bursts with ~1s gaps mid-sentence, so transcript timing
