@@ -48,12 +48,13 @@
 
 ## Features
 
-### Five AI Backends — Cloud or Fully On-Device
+### Six AI Backends — Cloud or Fully On-Device
 - **Local (MLX)**: A **choice of on-device models** via Apple MLX — Qwen 2.5 (0.5B/3B), Gemma 2 2B, Gemma 4 E2B, SmolVLM2 2.2B — so you can trade capability for memory/speed. Private, offline, **zero API cost**. Pick **SmolVLM2** to unlock **on-device vision** — photo Q&A *and* a fully-offline live video mode (see below).
 - **Apple Intelligence**: Apple's on-device Foundation Model (iOS 26+). **No download, no memory pressure** (OS-managed), private and offline. Uses guided generation + Apple's native tool-calling.
 - **OpenClaw**: Wake word activation, 56+ tools, task execution via WebSocket
 - **Gemini Live**: Real-time voice + vision with native audio streaming
 - **OpenAI**: GPT-4o text + vision over the Chat Completions API — works with any **OpenAI-compatible** endpoint (OpenRouter, Groq, local servers, etc.). Also drives **live video** via the **Realtime API** (`gpt-realtime`) — continuous voice + camera frames (see below). No API key? **Sign in with your ChatGPT subscription** instead (text + photos; live video needs a key).
+- **Grok**: xAI Grok text + vision over xAI's API, with an xAI API key or by **signing in with your SuperGrok subscription**. Same web search and productivity tools as OpenAI.
 
 ### Live Video — Real-Time Voice + Vision
 Say **"Ok Vision, start video stream"** to enter a live mode where the glasses camera stays on and the AI answers questions about what you're seeing. Ask freely — no wake word between questions — until you say **"stop video"**. Live video routes to whichever backend you've selected:
@@ -230,6 +231,12 @@ Full instructions, CLI build commands, and troubleshooting: **[SETUP.md](SETUP.m
 > official OpenAI API, so it can change or stop working without notice. Tokens are stored in the
 > iOS Keychain. Signing in on the phone appears to end an existing Codex CLI session for the same
 > account (and vice versa), so if you use both, expect to sign in again on the other device.
+
+**For Grok (text + vision):**
+1. Settings → AI Backend → **Grok** → choose **SuperGrok Subscription** (Sign in with SuperGrok) or **API Key** (from [console.x.ai](https://console.x.ai))
+2. Pick a model (non-reasoning models answer fastest)
+
+> SuperGrok sign-in works the way the Grok CLI signs in; requests then go to xAI's public API.
 
 **For on-device vision (SmolVLM2):**
 1. Settings → AI Backend → **Local (MLX)**

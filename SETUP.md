@@ -254,6 +254,21 @@ Once the app is running:
 3. Tap **Gemini Settings**
 4. Enter your [Gemini API key](https://aistudio.google.com/app/apikey)
 
+### Grok Setup
+
+1. Go to **Settings → AI Backend**
+2. Select **Grok**
+3. Tap **Grok Settings** and choose how to connect:
+   - **SuperGrok Subscription**: tap **Sign in with SuperGrok** and log in with your X/xAI account
+   - **API Key**: paste a key from [console.x.ai](https://console.x.ai)
+4. Pick a model (non-reasoning models answer fastest)
+
+To hear replies in a Grok voice, go to **Settings → Voice Control → Speech Engine**, choose
+**Grok (natural, cloud)**, and pick a voice. The ▶ next to each voice plays a sample. It uses
+the same sign-in or key as the backend.
+
+> SuperGrok sign-in works the way the Grok CLI signs in; requests then go to xAI's public API.
+
 ---
 
 ## Step 7: Register Glasses (Optional)

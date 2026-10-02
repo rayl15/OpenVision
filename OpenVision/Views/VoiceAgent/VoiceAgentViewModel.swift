@@ -58,7 +58,13 @@ final class VoiceAgentViewModel: ObservableObject {
     /// Sentence-streaming TTS (Apple only): how many characters of the streamed reply have
     /// already been handed to the speech queue, and whether a streamed utterance is open.
     private var ttsStreamSpokenChars = 0
-    private var ttsStreaming = false
+    private var ttsStreaming = false {
+        didSet { if !ttsStreaming { streamingNeuralTTS = nil } }
+    }
+    /// The neural engine the open streamed reply started on (nil = Apple TTS). Captured once at
+    /// beginStreaming so a Speech Engine change mid-reply can't send endStreaming to a different
+    /// engine and leave the first one stuck speaking.
+    private var streamingNeuralTTS: NeuralSpeechEngine?
 
     /// History: true after a user command was recorded, until its reply is recorded. Keeps
     /// system utterances ("Live video mode active", error prompts) out of the History tab.
@@ -148,17 +154,20 @@ final class VoiceAgentViewModel: ObservableObject {
         }
     }
 
-    // Kokoro drives the same speaking-state flow as Apple TTS: keep the recognizer running
+    // Neural voices (Kokoro, Grok) drive the same speaking-state flow as Apple TTS: keep the recognizer running
     // (in .processing) with barge-in paused so it stays in the conversation loop, then enter
     // conversation mode when playback finishes. (Don't stopListening — that trips the .idle
     // session-teardown observer and ends the conversation after every reply.)
-    func kokoroSpeakingChanged(_ speaking: Bool) {
+    func neuralSpeakingChanged(_ speaking: Bool) {
+        // Each neural engine reports separately. One finishing (say a Kokoro preview, or an ambient
+        // line) mustn't end the turn while another is still speaking a reply.
+        if !speaking && NeuralSpeech.isAnySpeaking { return }
         if speaking {
             agentState = .speaking
             voiceCommandService.isBargeInPaused = true
         } else {
-            // Kokoro has its OWN speaking-state callback, so instrumenting only
-            // ttsSpeakingChanged left every Kokoro turn unpublished — device metrics kept
+            // Neural engines have their OWN speaking-state callback, so instrumenting only
+            // ttsSpeakingChanged left every Kokoro/Grok turn unpublished — device metrics kept
             // flowing while turn metrics silently vanished whenever Kokoro was selected.
             MetricsCollector.shared.markSpokeDone()
             commandTurnActive = false   // reply fully played; ambient narration may resume
@@ -213,7 +222,7 @@ final class VoiceAgentViewModel: ObservableObject {
                         await OpenClawService.shared.disconnect()
                     case .geminiLive:
                         await GeminiLiveService.shared.disconnect()
-                    case .openAI:
+                    case .openAI, .grok:
                         break   // stateless HTTP — nothing to disconnect
                     case .appleFoundation:
                         break   // OS-managed — nothing to disconnect
@@ -231,7 +240,7 @@ final class VoiceAgentViewModel: ObservableObject {
             // plain .listening, which would let the next idle tear the session down).
             if isLiveVideoMode {
                 agentState = .liveVideo
-            } else if ttsService.isSpeaking || KokoroTTSService.shared.isSpeaking {
+            } else if ttsService.isSpeaking || NeuralSpeech.isAnySpeaking {
                 // The recognizer restarts (→ conversation mode) mid-reply for barge-in; don't
                 // let that flip the UI to "Listening" while the assistant is still speaking.
                 agentState = .speaking
@@ -288,6 +297,10 @@ final class VoiceAgentViewModel: ObservableObject {
                 case .openAI:
                     try await OpenAIService.shared.connect()
                     // Stateless HTTP — photos are captured on-demand like OpenClaw.
+
+                case .grok:
+                    try await GrokService.shared.connect()
+                    // Stateless HTTP — photos are captured on-demand like OpenAI.
 
                 case .appleFoundation:
                     try await AppleFoundationService.shared.connect()
@@ -395,7 +408,7 @@ final class VoiceAgentViewModel: ObservableObject {
                 await OpenClawService.shared.disconnect()
             case .geminiLive:
                 await GeminiLiveService.shared.disconnect()
-            case .openAI:
+            case .openAI, .grok:
                 break   // stateless HTTP — nothing to disconnect
             case .appleFoundation:
                 break   // OS-managed — nothing to disconnect
@@ -414,7 +427,7 @@ final class VoiceAgentViewModel: ObservableObject {
 
         // Stop any ongoing TTS
         ttsService.stop()
-        KokoroTTSService.shared.stop()
+        NeuralSpeech.stopAll()
 
         // Set session inactive FIRST to prevent callbacks from processing
         isSessionActive = false
@@ -447,7 +460,7 @@ final class VoiceAgentViewModel: ObservableObject {
         MetricsCollector.shared.markSpokeDone()
         commandTurnActive = false
         ttsService.stop()
-        KokoroTTSService.shared.stop()
+        NeuralSpeech.stopAll()
         audioPlayback.stop()
         ttsStreaming = false
 
@@ -455,7 +468,7 @@ final class VoiceAgentViewModel: ObservableObject {
             switch settingsManager.settings.aiBackend {
             case .openClaw: await OpenClawService.shared.interrupt()
             case .geminiLive: await GeminiLiveService.shared.interrupt()
-            case .openAI: break   // single request/response — nothing to interrupt
+            case .openAI, .grok: break   // single request/response — nothing to interrupt
             case .appleFoundation: AppleFoundationService.shared.interrupt()
             case .localGemma: GemmaLocalService.shared.interrupt()
             }
@@ -526,7 +539,7 @@ final class VoiceAgentViewModel: ObservableObject {
         voiceCommandService.shouldAllowInterrupt = { [weak self] in
             guard let self else { return false }
             return self.ttsService.isSpeaking
-                || KokoroTTSService.shared.isSpeaking
+                || NeuralSpeech.isAnySpeaking
                 || self.agentState == .thinking
         }
 
@@ -538,7 +551,7 @@ final class VoiceAgentViewModel: ObservableObject {
             self.soundService.playWakeWordSound()
 
             // If TTS is speaking, stop it immediately (interrupt)
-            if self.ttsService.isSpeaking || KokoroTTSService.shared.isSpeaking {
+            if self.ttsService.isSpeaking || NeuralSpeech.isAnySpeaking {
                 print("[VoiceAgent] Stopping TTS due to wake word interrupt")
                 // Also an interruption: the user said the wake word over a reply in progress.
                 MetricsCollector.shared.markInterrupted()
@@ -549,7 +562,7 @@ final class VoiceAgentViewModel: ObservableObject {
                 MetricsCollector.shared.markSpokeDone()
                 self.ttsService.stop()
                 self.ttsStreaming = false   // keep flag in sync with the cleared stream
-                KokoroTTSService.shared.stop()
+                NeuralSpeech.stopAll()
                 self.audioPlayback.stop()
                 // Cancel any in-flight on-device generation too — otherwise its next streamed
                 // token would immediately restart speech we just stopped.
@@ -605,7 +618,7 @@ final class VoiceAgentViewModel: ObservableObject {
             MetricsCollector.shared.markCommit(
                 backend: backend.rawValue,
                 model: backend == .localGemma ? GemmaLocalService.shared.activeModelId : nil,
-                ttsEngine: self.usingAppleTTS ? "apple" : "kokoro"
+                ttsEngine: self.usingAppleTTS ? "apple" : self.settingsManager.settings.ttsEngine.rawValue
             )
 
             // History: every captured command is a user message (Meta AI records all glasses
@@ -629,7 +642,7 @@ final class VoiceAgentViewModel: ObservableObject {
 
             // Stop TTS immediately
             self.ttsService.stop()
-            KokoroTTSService.shared.stop()
+            NeuralSpeech.stopAll()
 
             // Stop current AI response
             Task {
@@ -638,7 +651,7 @@ final class VoiceAgentViewModel: ObservableObject {
                     await OpenClawService.shared.interrupt()
                 case .geminiLive:
                     await GeminiLiveService.shared.interrupt()
-                case .openAI:
+                case .openAI, .grok:
                     break   // single request/response — nothing to interrupt
                 case .appleFoundation:
                     AppleFoundationService.shared.interrupt()
@@ -704,21 +717,21 @@ final class VoiceAgentViewModel: ObservableObject {
                     // close it here so streamingActive/isSpeaking don't stick true and freeze the
                     // wake-word listener (queued sentences still drain and reset isSpeaking).
                     if self.ttsStreaming {
-                        // Close whichever engine has the open utterance — leaving Kokoro's open
+                        // Close whichever engine has the open utterance — leaving a neural one open
                         // would strand isSpeaking true and freeze the wake-word listener.
-                        if self.usingAppleTTS {
-                            self.ttsService.endStreaming()
+                        if let neuralTTS = self.streamingNeuralTTS {
+                            neuralTTS.endStreaming()
                         } else {
-                            KokoroTTSService.shared.endStreaming()
+                            self.ttsService.endStreaming()
                         }
                         self.ttsStreaming = false
                     }
-                    if !self.ttsService.isSpeaking && !KokoroTTSService.shared.isSpeaking {
+                    if !self.ttsService.isSpeaking && !NeuralSpeech.isAnySpeaking {
                         // Turn produced no speech (error/interrupt) — release the narration hold.
                         self.commandTurnActive = false
                     }
                     if self.agentState == .thinking
-                        && !self.ttsService.isSpeaking && !KokoroTTSService.shared.isSpeaking {
+                        && !self.ttsService.isSpeaking && !NeuralSpeech.isAnySpeaking {
                         // Return to the live video indicator, not plain listening, while in live mode.
                         self.agentState = self.isLiveVideoMode ? .liveVideo
                             : (self.isSessionActive ? .listening : .idle)
@@ -835,7 +848,7 @@ final class VoiceAgentViewModel: ObservableObject {
                 MetricsCollector.shared.markInterrupted()
                 MetricsCollector.shared.markSpokeDone()
                 ttsService.stop()
-                KokoroTTSService.shared.stop()
+                NeuralSpeech.stopAll()
                 ttsStreaming = false
                 commandTurnActive = false
                 GemmaLocalService.shared.interrupt()
@@ -956,9 +969,9 @@ final class VoiceAgentViewModel: ObservableObject {
             } else {
                 try await backend.sendMessage(command, imageData: nil)
             }
-            // OpenAI is plain request/response with no session to keep "thinking" alive —
+            // OpenAI and Grok are plain request/response with no session to keep "thinking" alive —
             // restore the listening state inline. The others restore via their callbacks.
-            if backend.backendType == .openAI {
+            if backend.backendType == .openAI || backend.backendType == .grok {
                 agentState = isSessionActive ? .listening : .idle
             }
         } catch {
@@ -1004,7 +1017,7 @@ final class VoiceAgentViewModel: ObservableObject {
 
         // Stop TTS if speaking
         ttsService.stop()
-        KokoroTTSService.shared.stop()
+        NeuralSpeech.stopAll()
 
         // Match the audio pipeline to the backend's sample rates (Gemini 16k in / 24k out,
         // OpenAI 24k in / 24k out) before starting capture/playback.
@@ -1083,13 +1096,13 @@ final class VoiceAgentViewModel: ObservableObject {
     /// A ChatGPT subscription can't drive Realtime, so it falls through to Gemini.
     private func resolveLiveService() -> (service: any LiveVideoService, label: String)? {
         let settings = settingsManager.settings
-        if settings.aiBackend == .openAI && settings.isOpenAIRealtimeAvailable {
+        if settings.aiBackend == .openAI && settings.isOpenAIAPIAvailable {
             return (openAIRealtime, "OpenAI Realtime")
         }
         if settings.isGeminiConfigured {
             return (geminiLive, "Gemini Live")
         }
-        if settings.isOpenAIRealtimeAvailable {
+        if settings.isOpenAIAPIAvailable {
             return (openAIRealtime, "OpenAI Realtime")
         }
         return nil
@@ -1157,7 +1170,7 @@ final class VoiceAgentViewModel: ObservableObject {
             MetricsCollector.shared.markInterrupted()
             MetricsCollector.shared.markSpokeDone()
             ttsService.stop()
-            KokoroTTSService.shared.stop()
+            NeuralSpeech.stopAll()
             ttsStreaming = false
             commandTurnActive = false
             GemmaLocalService.shared.interrupt()
@@ -1324,7 +1337,7 @@ final class VoiceAgentViewModel: ObservableObject {
                 // the loop must never steal GPU from a real turn, and describing while speaking
                 // would talk over the answer.
                 if self.commandTurnActive || self.agentState == .thinking
-                    || self.ttsService.isSpeaking || KokoroTTSService.shared.isSpeaking {
+                    || self.ttsService.isSpeaking || NeuralSpeech.isAnySpeaking {
                     try? await Task.sleep(nanoseconds: 250_000_000)
                     continue
                 }
@@ -1407,7 +1420,7 @@ final class VoiceAgentViewModel: ObservableObject {
                        !description.isEmpty, sceneMovedOn,
                        FrameChange.isWorthSpeaking(description, lastSpoken: self.watchLastSpoken),
                        !self.commandTurnActive,
-                       !self.ttsService.isSpeaking, !KokoroTTSService.shared.isSpeaking,
+                       !self.ttsService.isSpeaking, !NeuralSpeech.isAnySpeaking,
                        self.agentState != .thinking, self.isLiveVideoMode {
                         self.watchLastSpoken = description
                         self.watchLastSpokenThumb = thumb
@@ -1443,9 +1456,8 @@ final class VoiceAgentViewModel: ObservableObject {
     /// (speak/beginStreaming) restart the player; a watch line using them cut user replies off
     /// mid-sentence whenever one landed during the line's synthesis window.
     private func speakWatchLine(_ text: String) {
-        if settingsManager.settings.ttsEngine == .kokoro && KokoroTTSService.shared.isModelReady {
-            let voice = settingsManager.settings.kokoroVoice
-            Task { await KokoroTTSService.shared.speakAmbient(text, voice: voice) }
+        if let neuralTTS {
+            Task { await neuralTTS.speakAmbient(text) }
         } else {
             ttsService.speakAmbient(text)
         }
@@ -1774,7 +1786,7 @@ final class VoiceAgentViewModel: ObservableObject {
         // Generation finishes well before the voice does (several sentences stay queued in TTS).
         // Don't stomp the state back to .listening while the reply is still being spoken — the
         // TTS-finished observers handle that transition at the right moment.
-        if !ttsService.isSpeaking && !KokoroTTSService.shared.isSpeaking {
+        if !ttsService.isSpeaking && !NeuralSpeech.isAnySpeaking {
             agentState = isSessionActive ? .listening : .idle
         }
     }
@@ -1993,7 +2005,10 @@ final class VoiceAgentViewModel: ObservableObject {
 
     // MARK: - TTS Integration
 
-    /// True when the active speech engine is Apple's system voice (not Kokoro).
+    /// The selected neural voice (Kokoro, Grok, OpenAI) when it can speak, else nil → Apple system voice.
+    private var neuralTTS: NeuralSpeechEngine? { NeuralSpeech.active(settingsManager.settings) }
+
+    /// True when the active speech engine is Apple's system voice (not a neural engine).
     ///
     /// This used to also gate whether the reply was STREAMED, because Kokoro runs on the Metal GPU
     /// alongside the on-device model and interleaving them risked contention. But waiting for the
@@ -2002,12 +2017,12 @@ final class VoiceAgentViewModel: ObservableObject {
     /// (speech overlapping generation). Both engines now stream; if contention is real it shows up
     /// as `tokens_per_second` dropping, which is instrumented.
     private var usingAppleTTS: Bool {
-        !(settingsManager.settings.ttsEngine == .kokoro && KokoroTTSService.shared.isModelReady)
+        neuralTTS == nil
     }
 
-    /// True when a streamed reply should be spoken sentence-by-sentence — now both engines.
+    /// True when a streamed reply should be spoken sentence-by-sentence — now every engine.
     private var canStreamSpeech: Bool {
-        usingAppleTTS || KokoroTTSService.shared.isModelReady
+        usingAppleTTS || neuralTTS != nil
     }
 
     /// Feed the streamed reply to Apple TTS sentence-by-sentence. `cumulative` is the full text so
@@ -2026,10 +2041,11 @@ final class VoiceAgentViewModel: ObservableObject {
             // the first sentence may only complete a boundary seconds later. markTTSRequested
             // fires in speakStreamedChunk at the actual hand-off; markFirstAudio fires inside
             // the engines when sound actually starts.
-            if usingAppleTTS {
-                ttsService.beginStreaming()
+            streamingNeuralTTS = neuralTTS
+            if let neuralTTS = streamingNeuralTTS {
+                neuralTTS.beginStreaming()
             } else {
-                KokoroTTSService.shared.beginStreaming()
+                ttsService.beginStreaming()
             }
         }
 
@@ -2042,10 +2058,10 @@ final class VoiceAgentViewModel: ObservableObject {
             let tail = pending.trimmingCharacters(in: .whitespacesAndNewlines)
             if !tail.isEmpty { speakStreamedChunk(tail) }
             ttsStreamSpokenChars = cumulative.count
-            if usingAppleTTS {
-                ttsService.endStreaming()
+            if let neuralTTS = streamingNeuralTTS {
+                neuralTTS.endStreaming()
             } else {
-                KokoroTTSService.shared.endStreaming()
+                ttsService.endStreaming()
             }
             ttsStreaming = false
             recordAssistantReply(cumulative)   // history: streamed reply is complete
@@ -2070,10 +2086,10 @@ final class VoiceAgentViewModel: ObservableObject {
     private func speakStreamedChunk(_ sentence: String) {
         // First-wins: the first sentence handed over starts the TTS TTFB clock.
         MetricsCollector.shared.markTTSRequested()
-        if usingAppleTTS {
-            ttsService.speakChunk(sentence)
+        if let neuralTTS = streamingNeuralTTS {
+            neuralTTS.speakChunk(sentence)
         } else {
-            KokoroTTSService.shared.speakChunk(sentence, voice: settingsManager.settings.kokoroVoice)
+            ttsService.speakChunk(sentence)
         }
     }
 
@@ -2088,9 +2104,9 @@ final class VoiceAgentViewModel: ObservableObject {
         // mark comes from the engine itself when sound actually starts; marking it here excluded
         // synthesis time, making TTS TTFB structurally zero and perceived latency optimistic.
         MetricsCollector.shared.markTTSRequested()
-        // Kokoro (on-device neural) when selected + ready; otherwise the Apple system voice.
-        if settingsManager.settings.ttsEngine == .kokoro && KokoroTTSService.shared.isModelReady {
-            Task { await KokoroTTSService.shared.speak(text, voice: settingsManager.settings.kokoroVoice) }
+        // A neural voice (Kokoro on-device; Grok, OpenAI cloud) when selected + ready; otherwise Apple's.
+        if let neuralTTS {
+            Task { await neuralTTS.speak(text) }
         } else {
             ttsService.speak(text)
         }

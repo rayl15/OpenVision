@@ -29,6 +29,7 @@ final class OAuthSignIn: NSObject, ASWebAuthenticationPresentationContextProvidi
     private static let deadline: Duration = .seconds(300)
 
     private func run(_ provider: OAuthProvider) async throws -> OAuthCredentials {
+        let provider = await OAuthClient.resolved(provider)
         let verifier = PKCE.randomString()
         let state = PKCE.randomString(byteCount: 16)
         let url = OAuthClient.authorizeURL(for: provider, challenge: PKCE.challenge(for: verifier), state: state)

@@ -15,8 +15,9 @@ struct OAuthProvider: Sendable {
     /// Stable id — the Keychain account and log tag (e.g. "chatgpt").
     let id: String
     let displayName: String
-    let authorizeURL: URL
-    let tokenURL: URL
+    /// Static endpoints. With `discoveryURL` set they're the fallback for discovery.
+    var authorizeURL: URL
+    var tokenURL: URL
     let clientId: String
     let scope: String
     /// The redirect registered for the reused CLI client id. Must match exactly.
@@ -27,6 +28,11 @@ struct OAuthProvider: Sendable {
     var extraAuthParams: [String: String] = [:]
     /// Refresh this long before the real expiry so a request never races the deadline.
     var refreshSkew: TimeInterval = 60
+    /// OIDC discovery document whose endpoints override the static ones (xAI).
+    var discoveryURL: URL? = nil
+    /// Discovered endpoints must be https on this host or a subdomain — the discovery response
+    /// decides where tokens get sent, so it isn't trusted blindly.
+    var trustedHost: String? = nil
 
     var redirectURI: String { "http://\(redirectHost):\(redirectPort)\(redirectPath)" }
 }
@@ -103,6 +109,57 @@ extension Data {
 
 enum OAuthClient {
 
+    // MARK: Discovery
+
+    private static let discoveryLock = NSLock()
+    /// Per provider: the discovered endpoints, or nil when discovery failed this launch.
+    nonisolated(unsafe) private static var discovered: [String: (authorize: URL, token: URL)?] = [:]
+
+    /// `provider` with its endpoints from OIDC discovery when it has a discovery URL. The result is
+    /// cached for the launch, including a failure ("use the static endpoints"), because this runs
+    /// inside the single-flight token refresh and a captive portal shouldn't stall every refresh.
+    static func resolved(_ provider: OAuthProvider) async -> OAuthProvider {
+        guard let discoveryURL = provider.discoveryURL else { return provider }
+        var provider = provider
+        if let cached = discoveryLock.withLock({ discovered[provider.id] }) {
+            if let cached {
+                provider.authorizeURL = cached.authorize
+                provider.tokenURL = cached.token
+            }
+            return provider
+        }
+        var result: (authorize: URL, token: URL)?
+        do {
+            var request = URLRequest(url: discoveryURL)
+            request.timeoutInterval = 8
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            if let authorize = trustedEndpoint(json?["authorization_endpoint"], provider),
+               let token = trustedEndpoint(json?["token_endpoint"], provider) {
+                result = (authorize, token)
+            } else {
+                NSLog("[OAuth] %@ discovery returned untrusted endpoints, using defaults", provider.id)
+            }
+        } catch {
+            NSLog("[OAuth] %@ discovery failed (%@), using defaults", provider.id, "\(error)")
+        }
+        discoveryLock.withLock { discovered[provider.id] = .some(result) }
+        if let result {
+            provider.authorizeURL = result.authorize
+            provider.tokenURL = result.token
+        }
+        return provider
+    }
+
+    /// An endpoint is used only if it's https on the provider's trusted host or a subdomain.
+    static func trustedEndpoint(_ value: Any?, _ provider: OAuthProvider) -> URL? {
+        guard let string = value as? String, let url = URL(string: string),
+              url.scheme == "https", let host = url.host?.lowercased(),
+              let trusted = provider.trustedHost?.lowercased(),
+              host == trusted || host.hasSuffix("." + trusted) else { return nil }
+        return url
+    }
+
     static func authorizeURL(for provider: OAuthProvider, challenge: String, state: String) -> URL {
         var components = URLComponents(url: provider.authorizeURL, resolvingAgainstBaseURL: false)!
         var items = [
@@ -148,6 +205,7 @@ enum OAuthClient {
 
     static func refresh(_ current: OAuthCredentials, provider: OAuthProvider) async throws -> OAuthCredentials {
         guard !current.refreshToken.isEmpty else { throw OAuthError.authorizationExpired }
+        let provider = await resolved(provider)
         let data = try await postToken(provider.tokenURL, form: [
             "grant_type": "refresh_token",
             "refresh_token": current.refreshToken,

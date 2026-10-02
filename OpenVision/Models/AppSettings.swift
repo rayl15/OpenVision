@@ -8,6 +8,7 @@ enum AIBackendType: String, Codable, CaseIterable {
     case openClaw = "openclaw"
     case geminiLive = "gemini_live"
     case openAI = "openai"
+    case grok = "grok"
     case appleFoundation = "apple_foundation"
     case localGemma = "local_gemma"
 
@@ -16,6 +17,7 @@ enum AIBackendType: String, Codable, CaseIterable {
         case .openClaw: return "OpenClaw"
         case .geminiLive: return "Gemini Live"
         case .openAI: return "OpenAI"
+        case .grok: return "Grok"
         case .appleFoundation: return "Apple Intelligence"
         case .localGemma: return "Local (MLX)"
         }
@@ -29,6 +31,8 @@ enum AIBackendType: String, Codable, CaseIterable {
             return "Real-time voice + vision, continuous conversation"
         case .openAI:
             return "GPT — cloud text + vision (API key or ChatGPT subscription)"
+        case .grok:
+            return "xAI Grok — cloud text + vision (API key or SuperGrok)"
         case .appleFoundation:
             return "On-device Apple model — private, no download (iOS 26+)"
         case .localGemma:
@@ -41,6 +45,7 @@ enum AIBackendType: String, Codable, CaseIterable {
         case .openClaw: return "terminal"
         case .geminiLive: return "waveform"
         case .openAI: return "sparkles"
+        case .grok: return "bolt"
         case .appleFoundation: return "apple.logo"
         case .localGemma: return "cpu"
         }
@@ -75,15 +80,47 @@ enum OpenAIAuthMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// How the Grok backend authenticates.
+enum GrokAuthMode: String, Codable, CaseIterable, Identifiable {
+    /// xAI API key (console.x.ai).
+    case apiKey = "api_key"
+    /// Sign in with a SuperGrok subscription (see GrokService).
+    case superGrok = "supergrok"
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .apiKey: return "API Key"
+        case .superGrok: return "SuperGrok Subscription"
+        }
+    }
+    /// The trade-off, shown where the choice is made.
+    var summary: String {
+        switch self {
+        case .apiKey: return "Pay per use with xAI API credits."
+        case .superGrok: return "Use your SuperGrok plan. Text and photos."
+        }
+    }
+    var icon: String {
+        switch self {
+        case .apiKey: return "key"
+        case .superGrok: return "person.crop.circle"
+        }
+    }
+}
+
 /// Which text-to-speech engine to use.
 enum TTSEngineType: String, Codable, CaseIterable, Identifiable {
     case appleSystem = "apple"
     case kokoro = "kokoro"
+    case grok = "grok"
+    case openAI = "openai"
     var id: String { rawValue }
     var displayName: String {
         switch self {
         case .appleSystem: return "Apple (system voice)"
         case .kokoro: return "Kokoro (natural, on-device)"
+        case .grok: return "Grok (natural, cloud)"
+        case .openAI: return "OpenAI (natural, cloud)"
         }
     }
 }
@@ -127,11 +164,28 @@ struct AppSettings: Codable, Equatable {
     /// server, Azure-style gateways, etc.). No trailing slash.
     var openAIBaseURL: String = "https://api.openai.com/v1"
 
+    /// Voice for the OpenAI speech engine (needs an API key; the subscription doesn't cover speech).
+    var openAITTSVoice: String = CloudTTSService.openAIDefaultVoice
+
     /// Realtime model id used for live audio + video mode (GA gpt-realtime).
     var openAIRealtimeModel: String = "gpt-realtime"
 
     /// Voice used by the OpenAI Realtime backend.
     var openAIRealtimeVoice: String = "marin"
+
+    // MARK: - Grok Configuration
+
+    /// xAI API key, or a SuperGrok sign-in (tokens live in the Keychain, not here).
+    var grokAuthMode: GrokAuthMode = .apiKey
+
+    /// xAI API key.
+    var grokAPIKey: String = ""
+
+    /// Grok model id. Both sign-in methods use the same public API, so one model setting serves both.
+    var grokModel: String = GrokService.defaultModel
+
+    /// Voice for the Grok speech engine (xAI TTS voice id, e.g. "ara").
+    var grokVoice: String = CloudTTSService.grokDefaultVoice
 
     // MARK: - Web Search
 
@@ -234,14 +288,22 @@ struct AppSettings: Codable, Equatable {
         }
     }
 
-    /// Whether OpenAI Realtime (live video) can be used. It needs a real API key — the ChatGPT
-    /// subscription backend serves the Responses API only.
-    var isOpenAIRealtimeAvailable: Bool {
+    /// Whether the public OpenAI API — Realtime live video, speech — can be used. It needs a real
+    /// API key: the ChatGPT subscription backend serves the Responses API only.
+    var isOpenAIAPIAvailable: Bool {
         openAIAuthMode == .apiKey && isOpenAIAPIKeyConfigured
     }
 
     private var isOpenAIAPIKeyConfigured: Bool {
         !openAIAPIKey.isEmpty && !openAIBaseURL.isEmpty
+    }
+
+    /// Whether Grok is configured (API key, or signed in to SuperGrok)
+    var isGrokConfigured: Bool {
+        switch grokAuthMode {
+        case .apiKey: return !grokAPIKey.isEmpty
+        case .superGrok: return OAuthTokenStore.shared.isSignedIn(GrokService.provider)
+        }
     }
 
     /// Whether the local Gemma backend is ready (model downloaded)
@@ -255,6 +317,7 @@ struct AppSettings: Codable, Equatable {
         case .openClaw: return isOpenClawConfigured
         case .geminiLive: return isGeminiConfigured
         case .openAI: return isOpenAIConfigured
+        case .grok: return isGrokConfigured
         case .appleFoundation: return true   // OS-managed; availability checked at connect
         case .localGemma: return isLocalGemmaConfigured
         }

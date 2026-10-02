@@ -112,6 +112,7 @@ final class KokoroTTSService: ObservableObject {
         guard !clean.isEmpty, isModelReady else { return }
         isSpeaking = true   // set immediately so the UI pauses the recognizer during synthesis too
         generationActive = true
+        utteranceGeneration += 1
         defer {
             generationActive = false
             if pendingBuffers <= 0 { isSpeaking = false }   // everything already played (or nothing to play)
@@ -146,6 +147,7 @@ final class KokoroTTSService: ObservableObject {
         utteranceCancelled = true   // in-flight synthesis discards its output
         chunkQueue.removeAll()
         pendingBuffers = 0
+        playerEpoch += 1
         if audioReady { playerNode.stop() }
     }
 
@@ -187,6 +189,7 @@ final class KokoroTTSService: ObservableObject {
         chunkQueue.removeAll()
         utteranceCancelled = false
         generationActive = true
+        utteranceGeneration += 1
         isSpeaking = true          // pauses the recognizer for the whole utterance
     }
 
@@ -258,9 +261,15 @@ final class KokoroTTSService: ObservableObject {
         // This is a NEW utterance we now own: a leftover cancel flag from a previous stop()
         // would otherwise drop every ambient line until the next streamed reply reset it.
         utteranceCancelled = false
+        utteranceGeneration += 1
+        let ownGeneration = utteranceGeneration
         defer {
-            generationActive = false
-            if outputDrained { isSpeaking = false }
+            // A reply that started during synthesis owns generationActive now; resetting it here
+            // would let isSpeaking clear mid-reply.
+            if utteranceGeneration == ownGeneration {
+                generationActive = false
+                if outputDrained { isSpeaking = false }
+            }
         }
         do {
             let voiceArray = try await ensureVoice(voice)
@@ -286,6 +295,14 @@ final class KokoroTTSService: ObservableObject {
     /// once generation has finished AND the last queued sentence has played out.
     private var pendingBuffers = 0
     private var generationActive = false
+    /// Bumped by every new utterance, so ambient narration can tell whether it still owns the
+    /// generation state when its synthesis finishes.
+    private var utteranceGeneration = 0
+    /// Bumped whenever the player is stopped. AVAudioPlayerNode also fires a buffer's completion
+    /// handler when stop() discards it, and those handlers run later on the main actor; without
+    /// this they'd decrement `pendingBuffers` for the NEXT utterance and clear `isSpeaking` while
+    /// it's still playing (letting the assistant's own audio trigger barge-in).
+    private var playerEpoch = 0
 
     /// Queue one sentence's audio. `restartPlayer` is true for a reply's first sentence — it
     /// clears anything left from a previous (interrupted) reply; later sentences append to the
@@ -314,13 +331,14 @@ final class KokoroTTSService: ObservableObject {
             if !audioEngine.isRunning { try audioEngine.start() }
             if restartPlayer {
                 playerNode.stop()
+                playerEpoch += 1
                 pendingBuffers = 0
             }
             pendingBuffers += 1
             // .dataPlayedBack fires when the audio has actually finished playing (not just scheduled).
-            playerNode.scheduleBuffer(buffer, at: nil, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            playerNode.scheduleBuffer(buffer, at: nil, options: [], completionCallbackType: .dataPlayedBack) { [weak self, epoch = playerEpoch] _ in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, self.playerEpoch == epoch else { return }
                     self.pendingBuffers -= 1
                     if self.outputDrained && !self.generationActive {
                         self.isSpeaking = false

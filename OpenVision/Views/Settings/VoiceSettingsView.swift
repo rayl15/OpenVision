@@ -9,6 +9,7 @@ struct VoiceSettingsView: View {
 
     @EnvironmentObject var settingsManager: SettingsManager
 
+
     // MARK: - Computed Properties
 
     private var selectedVoiceName: String {
@@ -20,6 +21,32 @@ struct VoiceSettingsView: View {
     }
 
     // MARK: - Body
+
+    /// A "Voice" row that opens a voice list, styled like the Apple Voice row.
+    private func voiceRow<Destination: View>(_ title: String, value: String,
+                                             @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink(destination: destination) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value).foregroundColor(.secondary)
+            }
+        }
+    }
+
+    /// Shortcut to the credential a cloud voice uses, with its status.
+    private func accountRow<Destination: View>(_ title: String, icon: String, connected: Bool,
+                                               @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink(destination: destination) {
+            HStack {
+                Label(title, systemImage: icon)
+                Spacer()
+                Text(connected ? "Connected" : "Set Up")
+                    .font(.caption)
+                    .foregroundColor(connected ? .green : .orange)
+            }
+        }
+    }
 
     var body: some View {
         Form {
@@ -92,7 +119,8 @@ struct VoiceSettingsView: View {
                     }
                 }
 
-                if settingsManager.settings.ttsEngine == .appleSystem {
+                switch settingsManager.settings.ttsEngine {
+                case .appleSystem:
                     NavigationLink {
                         VoiceSelectionView()
                     } label: {
@@ -102,11 +130,15 @@ struct VoiceSettingsView: View {
                             Text(selectedVoiceName).foregroundColor(.secondary)
                         }
                     }
-                } else {
-                    Picker("Kokoro Voice", selection: $settingsManager.settings.kokoroVoice) {
-                        ForEach(KokoroTTSService.voices, id: \.self) { voice in
-                            Text(voice).tag(voice)
-                        }
+                case .kokoro:
+                    voiceRow("Kokoro Voice", value: settingsManager.settings.kokoroVoice) {
+                        NeuralVoiceListView(
+                            engine: .kokoro,
+                            title: "Kokoro Voice",
+                            selection: $settingsManager.settings.kokoroVoice,
+                            voices: KokoroTTSService.voices.map { CloudVoice(id: $0, name: $0, gender: "") },
+                            preview: { await KokoroTTSService.shared.speak(NeuralVoiceListView.sampleText, voice: $0) }
+                        )
                     }
                     NavigationLink {
                         KokoroSettingsView()
@@ -119,13 +151,44 @@ struct VoiceSettingsView: View {
                                 .foregroundColor(KokoroTTSService.shared.isModelReady ? .green : .orange)
                         }
                     }
+                case .grok:
+                    voiceRow("Grok Voice", value: settingsManager.settings.grokVoice.capitalized) {
+                        NeuralVoiceListView(
+                            engine: .grok,
+                            title: "Grok Voice",
+                            selection: $settingsManager.settings.grokVoice,
+                            loadVoices: { try await CloudTTSService.fetchGrokVoices() },
+                            preview: { await CloudTTSService.grok.speak(NeuralVoiceListView.sampleText, voice: $0) }
+                        )
+                    }
+                    accountRow("Grok Account", icon: "bolt", connected: settingsManager.settings.isGrokConfigured) {
+                        GrokSettingsView()
+                    }
+                case .openAI:
+                    voiceRow("OpenAI Voice", value: settingsManager.settings.openAITTSVoice.capitalized) {
+                        NeuralVoiceListView(
+                            engine: .openAI,
+                            title: "OpenAI Voice",
+                            selection: $settingsManager.settings.openAITTSVoice,
+                            voices: CloudTTSService.openAIVoices,
+                            preview: { await CloudTTSService.openAI.speak(NeuralVoiceListView.sampleText, voice: $0) }
+                        )
+                    }
+                    accountRow("OpenAI API Key", icon: "key", connected: settingsManager.settings.isOpenAIAPIAvailable) {
+                        OpenAISettingsView()
+                    }
                 }
             } header: {
                 Text("Output Voice")
             } footer: {
-                if settingsManager.settings.ttsEngine == .kokoro {
+                switch settingsManager.settings.ttsEngine {
+                case .kokoro:
                     Text("Kokoro is a natural, on-device neural voice — private and offline. Download its model (~600 MB) under Kokoro Model, then it runs entirely on-device.")
-                } else {
+                case .grok:
+                    Text("Grok is xAI's natural cloud voice. It uses your Grok sign-in (SuperGrok or API key), follows the language of each reply, and needs an internet connection. Replies are sent to xAI to be spoken.")
+                case .openAI:
+                    Text("OpenAI's natural cloud voice (\(CloudTTSService.openAITTSModel)). It needs an OpenAI API key with credits — a ChatGPT subscription doesn't cover speech. Replies are sent to OpenAI to be spoken.")
+                case .appleSystem:
                     Text("Apple's built-in system voice. For higher quality, download a Premium/Enhanced voice in iOS Settings → Accessibility → Spoken Content.")
                 }
             }

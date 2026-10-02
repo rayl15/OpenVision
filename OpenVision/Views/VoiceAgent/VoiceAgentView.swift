@@ -23,6 +23,8 @@ struct VoiceAgentView: View {
     @StateObject private var voiceCommandService = VoiceCommandService.shared
     @StateObject private var ttsService = TTSService.shared
     @StateObject private var kokoroTTS = KokoroTTSService.shared
+    @StateObject private var grokTTS = CloudTTSService.grok
+    @StateObject private var openAITTS = CloudTTSService.openAI
     @StateObject private var documentFocus = DocumentFocus.shared
 
     // MARK: - Body
@@ -95,7 +97,13 @@ struct VoiceAgentView: View {
             viewModel.ttsSpeakingChanged(isSpeaking)
         }
         .onChange(of: kokoroTTS.isSpeaking) { speaking in
-            viewModel.kokoroSpeakingChanged(speaking)
+            viewModel.neuralSpeakingChanged(speaking)
+        }
+        .onChange(of: grokTTS.isSpeaking) { _, speaking in
+            viewModel.neuralSpeakingChanged(speaking)
+        }
+        .onChange(of: openAITTS.isSpeaking) { _, speaking in
+            viewModel.neuralSpeakingChanged(speaking)
         }
         // Control thinking sound based on agent state
         .onChange(of: viewModel.agentState) { newState in
