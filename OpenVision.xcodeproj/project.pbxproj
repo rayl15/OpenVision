@@ -1165,7 +1165,7 @@
 			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm.git";
 			requirement = {
 				kind = revision;
-				revision = 68947ccdca79bcf7a26dc220f73caa060369513c;
+				revision = 14414441fa44f45eee35a61e9fa0bab577cf9734;
 			};
 		};
 		F7EEA1ED9999A23C56A77DE0 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */ = {

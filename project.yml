@@ -130,9 +130,15 @@ packages:
     # built k_proj/v_proj/k_norm for ALL layers (never passed kvSharedOnly), so E2B's shared-KV layers
     # 15-34 demanded weights the checkpoint omits → keyNotFound. This commit ("Fix MLXVLM Gemma4 loader
     # to honor num_kv_shared_layers") passes kvSharedOnly per layer + guards attention on isKVSharedLayer.
-    # NOT bumped to main HEAD: a later commit (#369) adopts a newer mlx-swift API (greatestFiniteMagnitudeArray)
-    # we don't have (mlx-swift is 0.31.4, shared with the vendored Kokoro), so we pin just before it.
-    revision: "68947ccdca79bcf7a26dc220f73caa060369513c"
+    # The previous pin stopped just before #369, which needed a newer mlx-swift API
+    # (greatestFiniteMagnitudeArray) than the 0.31.4 we had then.
+    #
+    # Bumped to 14414441 ("Fix MLXFoundationModels compilation against the Xcode 27 beta 5 SDK", #544):
+    # the commit above was written against an earlier iOS 27 beta FoundationModels API, so on the
+    # Xcode 27 release SDK MLXFoundationModels fails with "extraneous argument label 'capabilities:'"
+    # and "'_' can only appear in a pattern". It descends from the commit above (keeps the Gemma 4
+    # kvSharedOnly fix) and includes #369, which now builds since mlx-swift moved to 0.31.6 (PrismML fork).
+    revision: "14414441fa44f45eee35a61e9fa0bab577cf9734"
   # CoreML Silero VAD (Apache 2.0). Gives us ACOUSTIC end-of-speech detection: the endpoint
   # countdown can start when the mic actually goes quiet instead of when SFSpeechRecognizer stops
   # emitting partials (which it does in bursts with ~1s gaps mid-sentence, so transcript timing
