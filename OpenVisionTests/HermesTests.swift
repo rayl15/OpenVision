@@ -23,9 +23,17 @@ final class HermesTests: XCTestCase {
                        "https://hermes.example.com/p/work/v1")
     }
 
+    func testAddressWithoutSchemeGetsOne() {
+        XCTAssertEqual(HermesService.apiBase(from: "hermes.example.com")?.absoluteString, "https://hermes.example.com/v1")
+        XCTAssertEqual(HermesService.apiBase(from: "myhost.tailnet.ts.net")?.absoluteString, "https://myhost.tailnet.ts.net/v1")
+        XCTAssertEqual(HermesService.apiBase(from: " 100.88.1.2:8642 ")?.absoluteString, "http://100.88.1.2:8642/v1")
+        XCTAssertEqual(HermesService.apiBase(from: "192.168.1.20:8642/p/work")?.absoluteString, "http://192.168.1.20:8642/p/work/v1")
+        XCTAssertEqual(HermesDashboard.base(from: "hermes.example.com/hermes")?.absoluteString, "https://hermes.example.com/hermes")
+        XCTAssertEqual(HermesService.withScheme("http://8.8.8.8"), "http://8.8.8.8", "a typed scheme is kept")
+    }
+
     func testAPIBaseRejectsNonHTTP() {
         XCTAssertNil(HermesService.apiBase(from: ""))
-        XCTAssertNil(HermesService.apiBase(from: "hermes.example.com"))
         XCTAssertNil(HermesService.apiBase(from: "ftp://hermes.example.com"))
     }
 
@@ -102,7 +110,6 @@ final class HermesTests: XCTestCase {
                        "wss://hermes.example.com/hermes/api/ws?ticket=t1")
         XCTAssertEqual(HermesDashboard.webSocketURL(base: URL(string: "http://100.88.1.2:9119")!, ticket: "t")?.absoluteString,
                        "ws://100.88.1.2:9119/api/ws?ticket=t")
-        XCTAssertNil(HermesDashboard.base(from: "hermes.example.com"))
         XCTAssertNil(HermesDashboard.base(from: "http://hermes.example.com"), "no tokens over plain http on the internet")
         XCTAssertNotNil(HermesDashboard.base(from: "http://192.168.1.20:9119"))
     }

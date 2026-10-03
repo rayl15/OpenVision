@@ -54,7 +54,7 @@ enum HermesDashboard {
     /// The dashboard base for whatever the user typed (`https://host`, a proxy prefix like
     /// `https://host/hermes`, trailing slash optional). Nil if it isn't http(s).
     nonisolated static func base(from text: String) -> URL? {
-        var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = HermesService.withScheme(text)
         while text.hasSuffix("/") { text.removeLast() }
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(),
               scheme == "https" || scheme == "http", url.host != nil else { return nil }

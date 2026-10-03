@@ -152,7 +152,7 @@ final class HermesService: ObservableObject {
     /// The `/v1` base for whatever the user typed: `https://host`, `https://host/v1`, a profile
     /// prefix (`https://host/p/work`), with or without a trailing slash. Nil if it isn't http(s).
     nonisolated static func apiBase(from serverURL: String) -> URL? {
-        var text = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = withScheme(serverURL)
         while text.hasSuffix("/") { text.removeLast() }
         if text.hasSuffix("/v1") { text.removeLast(3) }
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(),
@@ -166,15 +166,31 @@ final class HermesService: ObservableObject {
     nonisolated static func isUnencryptedRemote(_ serverURL: String) -> Bool {
         guard let base = apiBase(from: serverURL), base.scheme?.lowercased() == "http",
               let host = base.host?.lowercased() else { return false }
-        if host == "localhost" || host.hasSuffix(".local") || host.hasSuffix(".ts.net") { return false }
+        return !isLocalHost(host) && !host.hasSuffix(".ts.net")
+    }
+
+    /// Loopback, `.local`, or a private / Tailscale IPv4 address.
+    nonisolated static func isLocalHost(_ host: String) -> Bool {
+        let host = host.lowercased()
+        if host == "localhost" || host.hasSuffix(".local") { return true }
         let octets = host.split(separator: ".").compactMap { Int($0) }
-        guard octets.count == 4 else { return true }
+        guard octets.count == 4 else { return false }
         switch (octets[0], octets[1]) {
-        case (10, _), (127, _), (192, 168): return false
-        case (172, let b) where (16...31).contains(b): return false
-        case (100, let b) where (64...127).contains(b): return false   // Tailscale CGNAT range
-        default: return true
+        case (10, _), (127, _), (192, 168): return true
+        case (172, let b) where (16...31).contains(b): return true
+        case (100, let b) where (64...127).contains(b): return true   // Tailscale CGNAT range
+        default: return false
         }
+    }
+
+    /// The address with a scheme, for one typed without (`myhost.ts.net`, `100.88.1.2:8642`):
+    /// http for a local or Tailscale IP (servers there rarely have a certificate), https otherwise.
+    nonisolated static func withScheme(_ address: String) -> String {
+        let text = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !text.contains("://") else { return text }
+        let hostAndPort = text.split(separator: "/", maxSplits: 1).first.map(String.init) ?? text
+        let host = hostAndPort.split(separator: ":").first.map(String.init) ?? hostAndPort
+        return (isLocalHost(host) ? "http://" : "https://") + text
     }
 
     private static func authorize(_ request: inout URLRequest, key: String, sessionKey: String?) {
@@ -207,7 +223,7 @@ final class HermesService: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .notConfigured: return "Hermes isn't configured. Add your server and sign in, or an API key, in Settings → Hermes."
-            case .badURL: return "Enter the server address, e.g. https://hermes.example.com."
+            case .badURL: return "That isn't a server address. Enter one like hermes.example.com or 100.88.1.2:8642."
             case .unauthorized: return "The server rejected the API key. Use the API_SERVER_KEY from your Hermes server."
             case .notHermes: return "That address answered, but it isn't a Hermes API server."
             case .server(let detail): return "Hermes: \(detail)"
