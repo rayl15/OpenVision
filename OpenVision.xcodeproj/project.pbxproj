@@ -16,6 +16,7 @@
 		1D0AEF3C7A810FF410C8F2E5 /* SessionRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06B8E5499FB1BA51EF6F1741 /* SessionRecorder.swift */; };
 		1EEA4B0E379A76881244FAB9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE51DA812A9394A5064F60E /* SettingsView.swift */; };
 		223474C328BCC3C81ADCB93D /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFDF4A693D2CEB248757FBD3 /* OpenAIService.swift */; };
+		8A6467FB1A9E725FBEF8B262 /* CloudTTSFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D73C5CCFE6382A4B4234D4A /* CloudTTSFallbackTests.swift */; };
 		2241E9878F41D5D5856C9502 /* HermesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 641FA355FB2C0B37F5575730 /* HermesTests.swift */; };
 		23D894B8F06FA0DBE93C658B /* NeuralSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A82F52D647139EC398E043BF /* NeuralSpeech.swift */; };
 		2947D6E5D6D5B7080C53D478 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C27052ECD2FFC79652B5CDB3 /* OnboardingView.swift */; };
@@ -178,6 +179,7 @@
 		60E2210A5A20177647BDB5AD /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		6102B753E2737E698B780C8E /* HermesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesSettingsView.swift; sourceTree = "<group>"; };
 		6188DD26571BACB30096654D /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
+		5D73C5CCFE6382A4B4234D4A /* CloudTTSFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTTSFallbackTests.swift; sourceTree = "<group>"; };
 		641FA355FB2C0B37F5575730 /* HermesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesTests.swift; sourceTree = "<group>"; };
 		669EB2820345D230AB0F9FAC /* MetricsCollector+Configuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MetricsCollector+Configuration.swift"; sourceTree = "<group>"; };
 		6BD412B34D09394FE85F0181 /* NeuralVoiceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralVoiceListView.swift; sourceTree = "<group>"; };
@@ -662,6 +664,7 @@
 				39552315579536D518404FED /* DocumentChunkingTests.swift */,
 				B88E1A3CDAF6C7B3D7DF36FE /* FrameChangeTests.swift */,
 				3A5609ACD2D7FE78F322E775 /* GrokTests.swift */,
+				5D73C5CCFE6382A4B4234D4A /* CloudTTSFallbackTests.swift */,
 				641FA355FB2C0B37F5575730 /* HermesTests.swift */,
 				DD3DFE96152AAE9145F104D6 /* LocalAgentRouteTests.swift */,
 				BE4D7E31C137C29246EB9281 /* NativeToolSupportTests.swift */,
@@ -836,6 +839,7 @@
 				E9628B20FB4654FBBFC61EF9 /* DocumentChunkingTests.swift in Sources */,
 				9A7811CF026E8DF74F74C2A2 /* FrameChangeTests.swift in Sources */,
 				41DD47E61F53A95E861466C1 /* GrokTests.swift in Sources */,
+				8A6467FB1A9E725FBEF8B262 /* CloudTTSFallbackTests.swift in Sources */,
 				2241E9878F41D5D5856C9502 /* HermesTests.swift in Sources */,
 				DC6776A7CBFBB8E151FB6B85 /* LocalAgentRouteTests.swift in Sources */,
 				5F19226406CF5B705B57BACF /* NativeToolSupportTests.swift in Sources */,

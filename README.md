@@ -69,6 +69,7 @@ With **SmolVLM2** selected as your local model, **"Ok Vision, take a photo and t
 ### Natural Voices — On-Device or Cloud
 - **Kokoro**: a **natural, offline, private voice** (Kokoro-82M) running on-device via MLX.
 - **Grok** (xAI, 28 multilingual voices) and **OpenAI** (`gpt-4o-mini-tts`, 13 voices) cloud voices. Grok works with your SuperGrok sign-in or an xAI key; OpenAI needs an API key with credits.
+- If a cloud voice can't read a sentence (rate limit, timeout, no network), that sentence is spoken in the Apple voice instead of being skipped, and after two failures in a row the rest of the reply is too.
 - Pick one from the Speech Engine dropdown; every voice list has a ▶ button to hear a sample before choosing.
 - Apple's system voice stays the default (with Premium/Enhanced voice support).
 

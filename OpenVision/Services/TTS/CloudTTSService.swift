@@ -9,6 +9,10 @@
 //
 // The engine is provider-agnostic; a CloudVoiceProvider only says whether it can speak, which
 // voice is selected, and how to turn one sentence into WAV bytes.
+//
+// A sentence whose request fails (a 429, a timeout, no network) is spoken in the Apple voice in
+// its place in the queue, so the reply has no silent hole. After two failures in a row the rest
+// of the reply goes to the Apple voice outright rather than alternating per sentence.
 
 import AVFoundation
 import Foundation
@@ -45,7 +49,21 @@ final class CloudTTSService: ObservableObject {
     /// The format the player node is connected with (the first clip's, normally 24 kHz mono).
     private var playerFormat: AVAudioFormat?
 
-    private init(provider: CloudVoiceProvider) {
+    /// Speaks failed sentences. Its own synthesizer, not TTSService: the voice agent reads
+    /// TTSService finishing as the end of the reply.
+    private let fallback = AppleFallbackSpeaker()
+    /// Whether the current utterance falls back to the Apple voice (replies yes, voice previews
+    /// no: a failed preview shows `lastFailure` instead).
+    private var fallbackEnabled = true
+    /// Failed sentences in a row; at two, the rest of the reply uses the Apple voice.
+    private var consecutiveFailures = 0
+    private var appleForRest = false
+    /// Test hook: each sentence as it starts playing, and whether it's in the Apple voice.
+    var onSentenceStarted: ((_ sentence: String, _ appleVoice: Bool) -> Void)?
+    /// Test hook: how many sentences the Apple voice has actually been asked to speak.
+    var fallbackUtterances: Int { fallback.utterances }
+
+    init(provider: CloudVoiceProvider) {
         self.provider = provider
     }
 
@@ -53,15 +71,16 @@ final class CloudTTSService: ObservableObject {
 
     /// Speak a whole reply, replacing anything playing.
     func speak(_ text: String) async {
-        await speak(text, voice: provider.selectedVoice())
+        await speak(text, voice: provider.selectedVoice(), appleFallback: true)
     }
 
     /// Speak in a specific voice — used to preview voices in Settings before choosing one.
-    func speak(_ text: String, voice: String) async {
+    func speak(_ text: String, voice: String, appleFallback: Bool = false) async {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty, isReady else { return }
         stop()
         beginStreaming()
+        fallbackEnabled = appleFallback
         for sentence in TextChunking.sentences(clean) { enqueue(sentence, voice: voice) }
         endStreaming()
     }
@@ -72,11 +91,12 @@ final class CloudTTSService: ObservableObject {
         streamStarted = false
         utteranceCancelled = true   // in-flight synthesis discards its output
         pendingSentences.removeAll()
-        clipQueue.forEach { $0.cancel() }
+        clipQueue.forEach { $0.clip.cancel() }
         clipQueue.removeAll()
         pendingBuffers = 0
         playerEpoch += 1
         if audioReady { playerNode.stop() }
+        fallback.stop()
     }
 
     // MARK: - Streaming (speak sentences as the model produces them)
@@ -88,7 +108,7 @@ final class CloudTTSService: ObservableObject {
     /// Synthesis tasks in sentence order, at most `maxInFlight` at a time (enough to stay ahead of
     /// playback without a 15-sentence reply firing 15 requests and tripping rate limits). ONE
     /// drainer awaits them in order, so playback order is structural.
-    private var clipQueue: [Task<AVAudioPCMBuffer?, Never>] = []
+    private var clipQueue: [(text: String, clip: Task<AVAudioPCMBuffer?, Never>)] = []
     /// Sentences waiting for a synthesis slot.
     private var pendingSentences: [(text: String, voice: String)] = []
     private let maxInFlight = 3
@@ -123,6 +143,9 @@ final class CloudTTSService: ObservableObject {
         utteranceCancelled = false
         generationActive = true
         utteranceGeneration += 1
+        fallbackEnabled = true
+        consecutiveFailures = 0
+        appleForRest = false
         isSpeaking = true          // pauses the recognizer for the whole utterance
     }
 
@@ -142,7 +165,9 @@ final class CloudTTSService: ObservableObject {
     private func startSynthesis() {
         while clipQueue.count < maxInFlight, !pendingSentences.isEmpty {
             let next = pendingSentences.removeFirst()
-            clipQueue.append(Task { await self.synthesize(next.text, voice: next.voice) })
+            // Once the reply has moved to the Apple voice, don't request it from the cloud.
+            let skip = appleForRest
+            clipQueue.append((next.text, Task { skip ? nil : await self.synthesize(next.text, voice: next.voice) }))
         }
     }
 
@@ -155,22 +180,56 @@ final class CloudTTSService: ObservableObject {
     private func drainIfNeeded() {
         guard drainTask == nil else { return }
         drainTask = Task { [weak self] in
-            while let self, let task = self.clipQueue.first {
-                let clip = await task.value
+            while let self, let head = self.clipQueue.first {
+                let clip = await head.clip.value
                 // stop() (and maybe a new reply) may have replaced the queue while we waited —
                 // only play the clip if it's still the head of the CURRENT utterance.
-                guard self.clipQueue.first == task, !self.utteranceCancelled else { continue }
+                guard self.clipQueue.first?.clip == head.clip, !self.utteranceCancelled else { continue }
                 self.clipQueue.removeFirst()
+                let useCloud = clip != nil && !self.appleForRest
+                // Count the failure before refilling the queue, so a second failure in a row
+                // keeps the next sentence from being sent to the cloud.
+                if useCloud { self.consecutiveFailures = 0 } else if self.fallbackEnabled { self.noteFailure() }
                 self.startSynthesis()
-                if let clip {
+                if let clip, useCloud {
+                    self.onSentenceStarted?(head.text, false)
+                    guard !self.utteranceCancelled else { continue }
                     self.schedule(clip, restartPlayer: !self.streamStarted)
                     self.streamStarted = true
+                } else if self.fallbackEnabled {
+                    await self.speakWithAppleVoice(head.text)
                 }
             }
             guard let self else { return }
             self.drainTask = nil
             if !self.generationActive && self.outputDrained { self.isSpeaking = false }
         }
+    }
+
+    /// Speak a sentence the cloud couldn't synthesize, in its place: after the clips queued before
+    /// it have played out, and before the next one. The drainer waits here, so the two audio
+    /// paths never overlap and `isSpeaking` stays true throughout.
+    private func speakWithAppleVoice(_ sentence: String) async {
+        // A stop, then a new reply, can happen during the wait: only speak for this one.
+        let generation = utteranceGeneration
+        var current: Bool { !utteranceCancelled && utteranceGeneration == generation }
+        while pendingBuffers > 0 && current {
+            try? await Task.sleep(for: .milliseconds(30))
+        }
+        guard current else { return }
+        onSentenceStarted?(sentence, true)
+        guard current else { return }
+        MetricsCollector.shared.markFirstAudio()
+        await fallback.speak(sentence)
+    }
+
+    private func noteFailure() {
+        consecutiveFailures += 1
+        guard consecutiveFailures >= 2, !appleForRest else { return }
+        // Probably offline: stop asking the cloud for the rest of this reply.
+        NSLog("[%@] two sentences failed in a row, using the Apple voice for the rest", provider.name)
+        appleForRest = true
+        clipQueue.forEach { $0.clip.cancel() }   // requests already out come back as failures
     }
 
     /// Ambient narration (watch loop): speaks only into silence and drops itself if a reply
@@ -285,6 +344,60 @@ final class CloudTTSService: ObservableObject {
 }
 
 extension CloudTTSService: NeuralSpeechEngine {}
+
+// MARK: - Apple voice fallback
+
+/// Speaks one sentence in the user's Apple voice and returns when it has finished or been stopped.
+@MainActor
+final class AppleFallbackSpeaker: NSObject, AVSpeechSynthesizerDelegate {
+    private let synthesizer = AVSpeechSynthesizer()
+    /// The utterance being spoken and its waiter. A stopped utterance reports didCancel later,
+    /// so callbacks only finish the utterance they're about.
+    private var current: (id: ObjectIdentifier, finished: CheckedContinuation<Void, Never>)?
+    private(set) var utterances = 0
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
+
+    func speak(_ sentence: String) async {
+        stop()
+        let utterance = AVSpeechUtterance(string: sentence)
+        if let identifier = SettingsManager.shared.settings.selectedVoiceIdentifier,
+           let voice = AVSpeechSynthesisVoice(identifier: identifier) {
+            utterance.voice = voice
+        } else {
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        }
+        utterances += 1
+        await withCheckedContinuation { continuation in
+            current = (ObjectIdentifier(utterance), continuation)
+            synthesizer.speak(utterance)
+        }
+    }
+
+    func stop() {
+        synthesizer.stopSpeaking(at: .immediate)
+        if let current { finish(current.id) }
+    }
+
+    private func finish(_ id: ObjectIdentifier) {
+        guard let current, current.id == id else { return }
+        self.current = nil
+        current.finished.resume()
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor in self.finish(id) }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor in self.finish(id) }
+    }
+}
 
 // MARK: - Voices
 
