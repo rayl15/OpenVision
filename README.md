@@ -402,7 +402,7 @@ Face recognition, web search, and conversation memory all run on the **on-device
 ├─────────────────────────────────────────────────────────────────┤
 │  Managers                                                       │
 │  ├── GlassesManager      Meta DAT SDK wrapper                   │
-│  ├── SettingsManager     JSON persistence with debounce         │
+│  ├── SettingsManager     JSON settings, API keys in Keychain    │
 │  └── ConversationManager Chat history storage                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  External                                                       │

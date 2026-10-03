@@ -1,8 +1,8 @@
 // OpenVision - OAuthTokenStore.swift
 // Keychain persistence for subscription sign-ins, plus refresh-on-demand.
 //
-// Unlike API keys (settings.json), these are long-lived refresh tokens for the user's whole
-// subscription account, so they live in the Keychain. Accessible after first unlock (not "when
+// These are long-lived refresh tokens for the user's whole subscription account, so they live in
+// the Keychain (API keys too, via SettingsSecrets). Accessible after first unlock (not "when
 // unlocked") so a reply can still go out while the phone is locked in a pocket.
 //
 // Refreshes are single-flight per provider: providers rotate the refresh token on use, so two

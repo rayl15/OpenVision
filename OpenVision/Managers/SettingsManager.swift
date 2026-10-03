@@ -1,5 +1,6 @@
 // OpenVision - SettingsManager.swift
-// Singleton manager for settings persistence with debounced auto-save
+// Singleton manager for settings persistence with debounced auto-save.
+// API keys and tokens are saved to the Keychain (SettingsSecrets), not settings.json.
 
 import Foundation
 import Combine
@@ -28,6 +29,16 @@ final class SettingsManager: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private let debounceInterval: TimeInterval = 0.5
 
+    /// What the Keychain holds for each secret, so a save only writes the ones that changed.
+    private var storedSecrets: [String: String] = [:]
+    /// Secrets the Keychain couldn't be read for (before first unlock). Never written or deleted
+    /// until a read succeeds, so a locked launch can't wipe them.
+    private var unreadableSecrets: Set<String> = []
+    /// Secrets whose Keychain write failed: kept in settings.json rather than lost.
+    private var secretsKeptInFile: Set<String> = []
+    /// Unreadable secrets the user reset: deleted, not restored, once the Keychain can be read.
+    private var secretsToClear: Set<String> = []
+
     // MARK: - Callbacks
 
     /// Called when settings change (for live session updates)
@@ -40,10 +51,22 @@ final class SettingsManager: ObservableObject {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         settingsURL = documentsURL.appendingPathComponent("settings.json")
 
-        // Load existing settings or create defaults
-        settings = Self.loadSettings(from: settingsURL)
+        // Load existing settings or create defaults, then the secrets from the Keychain
+        let fileSettings = Self.loadSettings(from: settingsURL)
+        var keychain: [String: SettingsSecrets.Stored] = [:]
+        for (account, _) in SettingsSecrets.fields { keychain[account] = SettingsSecrets.read(account) }
+        let merged = SettingsSecrets.merge(file: fileSettings, keychain: keychain)
+        settings = merged.settings
+        unreadableSecrets = merged.unreadable
+        for (account, stored) in keychain { if case .value(let value) = stored { storedSecrets[account] = value } }
 
         print("[SettingsManager] Initialized with settings from: \(settingsURL.path)")
+
+        // A settings.json from an older build still has keys in plain text: move them now.
+        if SettingsSecrets.fields.contains(where: { !fileSettings[keyPath: $0.keyPath].isEmpty }) {
+            print("[SettingsManager] Moving API keys from settings.json to the Keychain")
+            saveNow()
+        }
     }
 
     // MARK: - Public Methods
@@ -57,6 +80,7 @@ final class SettingsManager: ObservableObject {
 
     /// Reset settings to defaults
     func resetToDefaults() {
+        secretsToClear = unreadableSecrets
         settings = AppSettings()
         saveNow()
     }
@@ -96,14 +120,54 @@ final class SettingsManager: ObservableObject {
     }
 
     private func performSave() {
+        saveSecrets()
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(settings)
+            // A secret typed while the Keychain was unreadable stays in the file until it isn't.
+            let pending = unreadableSecrets.filter { account in
+                SettingsSecrets.fields.contains { $0.account == account && !settings[keyPath: $0.keyPath].isEmpty }
+            }
+            let data = try encoder.encode(SettingsSecrets.forFile(settings, keepInFile: secretsKeptInFile.union(pending)))
             try data.write(to: settingsURL, options: .atomic)
             print("[SettingsManager] Settings saved")
         } catch {
             print("[SettingsManager] Error saving settings: \(error)")
+        }
+    }
+
+    /// Write the secrets that changed to the Keychain.
+    private func saveSecrets() {
+        for (account, keyPath) in SettingsSecrets.fields {
+            if unreadableSecrets.contains(account) {
+                // Try again: the phone may have been unlocked since launch.
+                switch SettingsSecrets.read(account) {
+                case .unreadable:
+                    continue
+                case .value(let stored):
+                    storedSecrets[account] = stored
+                    // Reset since launch: the write below deletes it instead.
+                    if settings[keyPath: keyPath].isEmpty && !secretsToClear.contains(account) {
+                        settings[keyPath: keyPath] = stored
+                    }
+                case .none:
+                    break
+                }
+                unreadableSecrets.remove(account)
+                secretsToClear.remove(account)
+            }
+            let value = settings[keyPath: keyPath]
+            guard storedSecrets[account, default: ""] != value else {
+                // The Keychain already has it (e.g. changed back after a failed write).
+                secretsKeptInFile.remove(account)
+                continue
+            }
+            if SettingsSecrets.write(value, account: account) {
+                storedSecrets[account] = value
+                secretsKeptInFile.remove(account)
+            } else {
+                secretsKeptInFile.insert(account)
+            }
         }
     }
 

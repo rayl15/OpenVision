@@ -158,7 +158,7 @@ enum TTSEngineType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// App settings persisted to Documents/settings.json
+/// App settings persisted to Documents/settings.json (API keys and tokens go to the Keychain; see SettingsSecrets)
 struct AppSettings: Codable, Equatable {
     // MARK: - AI Backend Selection
 

@@ -6,7 +6,7 @@ How OpenVision is organized, and the seams to use when extending it.
 OpenVision/
 ├── App/                 App entry (OpenVisionApp)
 ├── Config/              Constants + xcconfig-backed configuration (zero hardcoding)
-├── Managers/            App-wide state: SettingsManager, GlassesManager
+├── Managers/            App-wide state: SettingsManager (API keys in the Keychain), GlassesManager
 ├── Models/              Value types & settings enums (AIBackendType, TTSEngineType, …)
 ├── Services/            One folder per domain — the backbone of the app
 │   ├── AIBackend/       AIBackend protocol + registry + conformances, OpenAIService,
