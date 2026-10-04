@@ -32,10 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Provide Config.xcconfig
-        # The project refuses to build without it; the example's placeholder values are enough
-        # to compile. Real values only matter at runtime on a device.
-        run: cp Config.xcconfig.example Config.xcconfig
+      - name: Provide the gitignored config files
+        # Same two copies the README asks a new contributor to make. The project refuses to
+        # build without them; the examples' placeholder values are enough to compile, and the
+        # real values only matter at runtime on a device.
+        run: |
+          cp Config.xcconfig.example Config.xcconfig
+          cp OpenVision/Config/Config.swift.example OpenVision/Config/Config.swift
 
       - name: Cache Swift packages
         # Package.resolved is gitignored (whole xcworkspace), so key on the files that hold
