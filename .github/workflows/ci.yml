@@ -30,7 +30,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Provide the gitignored config files
         # Same two copies the README asks a new contributor to make. The project refuses to
