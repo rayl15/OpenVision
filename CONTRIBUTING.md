@@ -267,13 +267,41 @@ Types:
 - [ ] Documentation updated if needed
 - [ ] Tests added/updated
 - [ ] No compiler warnings introduced
+- [ ] CI is green
+
+### Continuous integration
+
+Every pull request is compiled by GitHub Actions (`.github/workflows/ci.yml`): the app and its
+test target are built for a generic iOS device with code signing off, on a free macOS runner.
+`main` requires that check to pass before a PR can merge, and that applies to maintainers too.
+
+The workflow copies `Config.xcconfig.example` and `OpenVision/Config/Config.swift.example` into
+place, so no secrets are needed to compile. If CI fails on your PR, open the job's log; the
+`.xcactivitylog` files are attached as an artifact when the build step fails.
 
 ## Release Process
 
-1. Version follows [Semantic Versioning](https://semver.org/)
-2. Update `CHANGELOG.md`
-3. Create release tag
-4. GitHub Action builds and publishes
+Releases are cut by a maintainer. Version numbers follow [Semantic Versioning](https://semver.org/):
+a new backend or feature bumps the minor version, fixes alone bump the patch version.
+
+1. Open a release branch from `main` (for example `release/2.15.0`).
+2. Update `CHANGELOG.md`: move everything merged since the last release under a new
+   `## [x.y.z] - YYYY-MM-DD` heading, grouped as Added / Changed / Fixed, with the PR number
+   on each line.
+3. Bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`, run `xcodegen generate`,
+   and commit as `Bump version to x.y.z (build N)`.
+4. Open a pull request. `main` is protected, so the release commits go through CI like any
+   other change; direct pushes to `main` are rejected.
+5. After the merge, tag the merge commit and publish the release with narrative notes and a
+   compare link:
+
+   ```bash
+   git tag -a vx.y.z -m "OpenVision x.y.z"
+   git push origin vx.y.z
+   gh release create vx.y.z --title "OpenVision x.y.z" --notes-file notes.md
+   ```
+
+The app is distributed as source; there is no App Store or TestFlight step in this repository.
 
 ## Questions?
 

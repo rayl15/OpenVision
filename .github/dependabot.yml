@@ -1,0 +1,12 @@
+# Keeps the GitHub Actions used by .github/workflows current. Swift packages are pinned by
+# hand in project.yml on purpose (several of them rewrite their API between releases), so
+# they are deliberately not covered here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [ci]
+    commit-message:
+      prefix: "CI"
