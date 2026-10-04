@@ -1,0 +1,75 @@
+name: CI
+
+# Compiles the app and its test target on every pull request and push to main, so a PR that
+# doesn't build never reaches a reviewer. The build is for a generic iOS device with code
+# signing off: that proves the code compiles against the SDK without needing certificates,
+# and it matches how the app is actually run (on a phone; the simulator can't do Bluetooth
+# or on-device MLX).
+#
+# Standard GitHub-hosted macOS runners are free for public repositories. Keep this on the
+# plain `macos-*` labels — "larger" runners are billed even for public repos.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pin the Xcode on the image so a runner image update can't change the SDK underneath a PR.
+  # Bump deliberately (and check the pinned mlx-swift-lm still compiles) when moving to a new
+  # Xcode. Xcode 27 is not on GitHub's images yet; see actions/runner-images.
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+jobs:
+  build:
+    name: Build app + tests (iOS device, unsigned)
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Provide Config.xcconfig
+        # The project refuses to build without it; the example's placeholder values are enough
+        # to compile. Real values only matter at runtime on a device.
+        run: cp Config.xcconfig.example Config.xcconfig
+
+      - name: Cache Swift packages
+        # Package.resolved is gitignored (whole xcworkspace), so key on the files that hold
+        # the pins. The MLX, Kokoro and Meta DAT checkouts are the slow part of a cold build.
+        uses: actions/cache@v4
+        with:
+          path: .spm
+          key: spm-${{ runner.os }}-${{ hashFiles('OpenVision.xcodeproj/project.pbxproj', 'project.yml') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project OpenVision.xcodeproj \
+            -scheme OpenVision \
+            -destination 'generic/platform=iOS' \
+            -clonedSourcePackagesDirPath .spm \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            DEVELOPMENT_TEAM= \
+          | xcbeautify --renderer github-actions
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-logs
+          path: DerivedData/Logs/Build/*.xcactivitylog
+          if-no-files-found: ignore
