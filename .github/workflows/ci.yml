@@ -52,6 +52,8 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
 
       - name: Build for testing
+        # mlx-swift ships a build plugin (CudaBuild) and mlx-swift-lm uses Swift macros; Xcode
+        # refuses both until a human approves them, which is what the two -skip flags do here.
         run: |
           set -o pipefail
           xcodebuild build-for-testing \
@@ -60,6 +62,8 @@ jobs:
             -destination 'generic/platform=iOS' \
             -clonedSourcePackagesDirPath .spm \
             -derivedDataPath DerivedData \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
