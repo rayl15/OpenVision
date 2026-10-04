@@ -43,7 +43,7 @@ jobs:
       - name: Cache Swift packages
         # Package.resolved is gitignored (whole xcworkspace), so key on the files that hold
         # the pins. The MLX, Kokoro and Meta DAT checkouts are the slow part of a cold build.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .spm
           key: spm-${{ runner.os }}-${{ hashFiles('OpenVision.xcodeproj/project.pbxproj', 'project.yml') }}
