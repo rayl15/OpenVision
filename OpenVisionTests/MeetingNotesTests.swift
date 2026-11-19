@@ -23,6 +23,14 @@ final class MeetingNotesTests: XCTestCase {
         XCTAssertFalse(MeetingNotesLogic.isStartCommand("remind me to start a meeting at 3"))
     }
 
+    func testStartPhraseMustBeTheCommand() {
+        // CodeRabbit (PR #75): a start phrase inside a longer request started recording.
+        XCTAssertFalse(MeetingNotesLogic.isStartCommand("remind me to record the meeting at 3 tomorrow"))
+        XCTAssertFalse(MeetingNotesLogic.isStartCommand("what does meeting mode do in google calendar"))
+        XCTAssertTrue(MeetingNotesLogic.isStartCommand("okay vision can you start taking notes now"))
+        XCTAssertTrue(MeetingNotesLogic.isStartCommand("record this meeting please"))
+    }
+
     // MARK: - Stop phrase
 
     func testNoStopPhrase() {
@@ -44,8 +52,25 @@ final class MeetingNotesTests: XCTestCase {
         XCTAssertEqual(MeetingNotesLogic.textBeforeStopCommand("That's all. Stop, taking notes."), "That's all")
     }
 
-    func testEarliestStopPhraseWins() {
-        XCTAssertEqual(MeetingNotesLogic.textBeforeStopCommand("done stop the notes then stop taking notes"), "done")
+    func testStopPhraseMidSentenceIsOrdinarySpeech() {
+        // CodeRabbit (PR #75): these ended the meeting and cut the transcript.
+        XCTAssertNil(MeetingNotesLogic.textBeforeStopCommand("we should stop transcribing invoices manually"))
+        XCTAssertNil(MeetingNotesLogic.textBeforeStopCommand("I said stop taking notes on paper, use the app"))
+        XCTAssertNil(MeetingNotesLogic.textBeforeStopCommand("agar hum notes band karo bolenge to kya hoga"))
+    }
+
+    func testOnlyTheTrailingStopPhraseCounts() {
+        XCTAssertEqual(MeetingNotesLogic.textBeforeStopCommand("we discussed stop the notes policy. Stop taking notes"),
+                       "we discussed stop the notes policy")
+    }
+
+    func testStopPhraseWithTrailingFiller() {
+        XCTAssertEqual(MeetingNotesLogic.textBeforeStopCommand("All done. Stop taking notes please."), "All done")
+        XCTAssertEqual(MeetingNotesLogic.textBeforeStopCommand("bas itna hi, notes band karo abhi"), "bas itna hi")
+    }
+
+    func testLongerOverlappingHindiPhraseIsCut() {
+        XCTAssertEqual(MeetingNotesLogic.textBeforeStopCommand("ठीक है मीटिंग नोट्स बंद करो"), "ठीक है")
     }
 
     // MARK: - Hindi and Hinglish

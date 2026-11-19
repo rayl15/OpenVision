@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (meeting notes, from the PR #75 review)
+- A stop phrase in the middle of a sentence ("we should stop transcribing invoices manually") ended the meeting and cut the transcript; stop phrases now count only at the end of what was said, after a 1.5 s pause
+- A start phrase anywhere in a command ("remind me to record the meeting at 3") started recording; it now has to be the command itself, give or take a filler word
+- Deleting a meeting while its summary was being written (or while Add to Reminders ran) brought it back
+- A meeting file that couldn't be written was reported as saved; now you're told, and it stays in the Meetings tab until the app quits so it can be shared
+- Summaries failed on newer OpenAI models that reject `max_tokens`
+- A watchdog restart dropped up to ~3 s of audio; the new recognizer now starts before the old one is retired
+- The docs and settings now say plainly that the transcript text goes to a cloud backend for the summary (audio and transcription stay on the phone)
+
 ### Added
 - **Meeting notes** — "Ok Vision, start taking notes" (or **Start** in the new **Meetings** tab) transcribes a meeting on the phone and, when you say "stop taking notes", writes a summary with a title, decisions and action items using the current AI backend, then reads a short recap aloud. Transcripts never leave the phone: Apple's on-device `SpeechAnalyzer` on iOS 26+, on-device `SFSpeechRecognizer` for English otherwise
 - **Meeting languages** — Settings → Voice → Meeting Notes → Language: English, **Hindi**, **Hinglish** (Apple's `mul_IN` multilingual model, for meetings that switch languages mid-sentence) and 10 more Indian languages, with Hindi and Hinglish stop phrases. A language's speech model downloads once, with progress; meeting audio is never sent to Apple's servers instead

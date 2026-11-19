@@ -46,6 +46,8 @@ final class MeetingNotesController: ObservableObject {
     /// The finished segment containing the stop phrase has arrived.
     private var stopSegmentSeen = false
     private(set) var isStopping = false
+    /// A stop phrase ended the in-progress text; fires after a short pause unless cancelled.
+    private var pendingStop: Task<Void, Never>?
     /// When the words now being transcribed began, so a segment is stamped with its start time.
     private var segmentStartedAt: Date?
 
@@ -90,6 +92,7 @@ final class MeetingNotesController: ObservableObject {
             self.meeting = meeting
             stopHeard = false
             stopSegmentSeen = false
+            cancelPendingStop()
             segmentStartedAt = nil
             liveLine = ""
 
@@ -140,6 +143,9 @@ final class MeetingNotesController: ObservableObject {
         case nothingTranscribed
         /// Stopped before listening started (e.g. during a model download).
         case cancelledDuringSetup
+        /// Transcribed, but the file couldn't be written (e.g. storage full). It's in the
+        /// Meetings tab until the app quits; Share it to keep it.
+        case savedInMemoryOnly(Meeting)
         /// Another stop is already handling it.
         case alreadyStopping
     }
@@ -178,9 +184,9 @@ final class MeetingNotesController: ObservableObject {
             return .nothingTranscribed
         }
         meeting.status = .needsSummary
-        store.save(meeting)
-        NSLog("[Meeting] stopped: %d words, %.0f s", meeting.wordCount, meeting.duration)
-        return .saved(meeting)
+        let written = store.save(meeting)
+        NSLog("[Meeting] stopped: %d words, %.0f s%@", meeting.wordCount, meeting.duration, written ? "" : " — FILE NOT WRITTEN")
+        return written ? .saved(meeting) : .savedInMemoryOnly(meeting)
     }
 
     // MARK: - Summary
@@ -204,9 +210,11 @@ final class MeetingNotesController: ObservableObject {
         store.save(meeting)
         do {
             let (summary, model) = try await MeetingSummarizer.summarize(meeting)
-            // Keep "added to Reminders" marks when re-summarising produces the same items.
+            // Keep "added to Reminders" marks when re-summarising produces the same items — read
+            // from the latest copy, since one may have been added while the summary was written.
             var merged = summary
-            let added = Set((meeting.summary?.actionItems ?? []).filter(\.addedToReminders).map(\.task))
+            let latest = store.meeting(id: id) ?? meeting
+            let added = Set((latest.summary?.actionItems ?? []).filter(\.addedToReminders).map(\.task))
             for i in merged.actionItems.indices where added.contains(merged.actionItems[i].task) {
                 merged.actionItems[i].addedToReminders = true
             }
@@ -221,19 +229,23 @@ final class MeetingNotesController: ObservableObject {
             // Backgrounded part-way through: try again when the app is opened, not in a loop.
             meeting.summaryWaitingForApp = UIApplication.shared.applicationState != .active ? true : nil
         }
-        store.save(meeting)
+        // The summary took a while: if the meeting was deleted meanwhile, leave it deleted.
+        guard store.update(meeting) else { return nil }
         return meeting
     }
 
     /// Add one action item to Apple Reminders and remember that it was added.
     func addToReminders(meetingID: UUID, itemID: UUID) async -> String {
-        guard var meeting = store.meeting(id: meetingID),
-              let i = meeting.summary?.actionItems.firstIndex(where: { $0.id == itemID }),
-              let item = meeting.summary?.actionItems[i] else { return "That action item is gone." }
+        guard let meeting = store.meeting(id: meetingID),
+              let item = meeting.summary?.actionItems.first(where: { $0.id == itemID }) else { return "That action item is gone." }
         let result = await NativeToolRegistry.shared.execute(name: "create_reminder", args: ["title": item.spoken])
         if result.hasPrefix("Reminder added") {
-            meeting.summary?.actionItems[i].addedToReminders = true
-            store.save(meeting)
+            // Re-read: the meeting may have been re-summarised or deleted while Reminders answered.
+            if var current = store.meeting(id: meetingID),
+               let j = current.summary?.actionItems.firstIndex(where: { $0.id == itemID }) {
+                current.summary?.actionItems[j].addedToReminders = true
+                store.update(current)
+            }
         }
         return result
     }
@@ -265,13 +277,30 @@ final class MeetingNotesController: ObservableObject {
         if !text.isEmpty, segmentStartedAt == nil { segmentStartedAt = Date() }
         if let before = MeetingNotesLogic.textBeforeStopCommand(text) {
             liveLine = before
-            requestStop()
+            // In-progress text ends with a stop phrase, but the sentence may go on ("stop
+            // transcribing… invoices manually"). Stop only after a short pause with no new words;
+            // any update that no longer ends with the phrase cancels it.
+            if pendingStop == nil {
+                pendingStop = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    guard !Task.isCancelled else { return }
+                    self?.pendingStop = nil
+                    self?.requestStop()
+                }
+            }
         } else {
+            cancelPendingStop()
             liveLine = text
         }
     }
 
+    private func cancelPendingStop() {
+        pendingStop?.cancel()
+        pendingStop = nil
+    }
+
     private func requestStop() {
+        cancelPendingStop()
         guard !stopHeard else { return }
         stopHeard = true
         NSLog("[Meeting] stop phrase heard")

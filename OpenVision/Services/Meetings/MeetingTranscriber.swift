@@ -336,18 +336,24 @@ final class MeetingTranscriber {
             return
         }
         isRestarting = true
-        commitVolatile()
-        analyzerSession = nil   // late results from the old session are now ignored
         Task { @MainActor [weak self] in
-            _ = await Self.finish(old, within: 3)
             guard let self else { return }
             defer { self.isRestarting = false }
-            guard self.isRunning else { return }
-            if let session = try? await AnalyzerSession.make(
+            // Start the new recognizer first and switch the mic to it, so audio keeps flowing to
+            // a live recognizer; then retire the old one. Only its unfinished words are lost to
+            // it, and those are committed here.
+            let session = try? await AnalyzerSession.make(
                 locale: self.locale, owner: self, downloadIfMissing: false,
-                languageName: self.languageName, onStatus: { _ in }) {
-                self.analyzerSession = session
+                languageName: self.languageName, onStatus: { _ in })
+            guard self.isRunning else { return }
+            self.commitVolatile()
+            self.analyzerSession = session   // late results from the old session are ignored
+            if let session {
                 self.sink.handler = { [weak session] buffer in session?.feed(buffer) }
+            }
+            _ = await Self.finish(old, within: 3)
+            guard self.isRunning else { return }
+            if session != nil {
                 NSLog("[Meeting] watchdog: recognizer restarted (%d)", self.restartCount)
             } else if self.fallbackIsOnDevice {
                 NSLog("[Meeting] watchdog: SpeechAnalyzer unavailable — switching to SFSpeech")

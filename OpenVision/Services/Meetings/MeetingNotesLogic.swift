@@ -39,21 +39,41 @@ enum MeetingNotesLogic {
         return "\"stop taking notes\""
     }
 
+    /// Words that don't change what a command means: the wake word and politeness.
+    private static let commandFillers: Set<String> = [
+        "ok", "okay", "hey", "vision", "please", "now", "can", "you", "could", "would", "just",
+        "go", "ahead", "and", "thanks", "thank", "ji", "abhi", "yaar",
+    ]
+
+    /// A start phrase that is the whole command, give or take a filler or two. Matching anywhere
+    /// in a sentence started recording on "remind me to record the meeting at 3".
     static func isStartCommand(_ text: String) -> Bool {
         let t = normalized(text)
-        return startPhrases.contains { t.contains($0) }
+        guard let phrase = startPhrases.first(where: { t.contains($0) }) else { return false }
+        let phraseWords = phrase.split(separator: " ").count
+        let otherWords = t.split(separator: " ").count - phraseWords
+        let extra = t.replacingOccurrences(of: phrase, with: " ").split(separator: " ")
+            .filter { !commandFillers.contains(String($0)) }.count
+        return extra == 0 || (extra <= 1 && otherWords <= 3)
     }
 
-    /// If `text` contains a stop phrase, the transcript before it (with a trailing wake word
-    /// such as "ok vision" removed). nil when there's no stop phrase.
+    /// Fillers allowed after a stop phrase ("stop taking notes please", "notes band karo abhi").
+    private static let trailingFillers = "please|now|thanks|thank you|ji|abhi|yaar|अभी|जी|कृपया|धन्यवाद"
+
+    /// If `text` ENDS with a stop phrase (allowing a filler like "please" after it), the
+    /// transcript before it, with a wake word such as "ok vision" just before it removed. nil
+    /// otherwise — a stop phrase in the middle of a sentence ("we should stop transcribing
+    /// invoices manually") is ordinary speech.
     static func textBeforeStopCommand(_ text: String) -> String? {
-        // Earliest stop phrase in the text, matching words with any punctuation or spaces between
-        // them ("Stop, taking notes."), case-insensitively on the original text.
+        // Words may be separated by any punctuation or spaces ("Stop, taking notes."); matched
+        // case-insensitively on the original text. The earliest match wins, so the longest of
+        // two overlapping phrases ("मीटिंग नोट्स बंद करो" over "नोट्स बंद करो") is cut.
         let full = NSRange(text.startIndex..., in: text)
         let earliest = stopPhrases.compactMap { phrase -> NSRange? in
             let pattern = "\\b" + phrase.split(separator: " ")
                 .map { NSRegularExpression.escapedPattern(for: String($0)) }
-                .joined(separator: "[\\s\\p{P}]+") + "\\b"
+                .joined(separator: "[\\s\\p{P}]+")
+                + "\\b(?:[\\s\\p{P}]+(?:\(trailingFillers))\\b)*[\\s\\p{P}]*$"
             return (try? NSRegularExpression(pattern: pattern, options: .caseInsensitive))?
                 .firstMatch(in: text, range: full)?.range
         }.min { $0.location < $1.location }
