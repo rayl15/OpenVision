@@ -302,6 +302,14 @@ struct AppSettings: Codable, Equatable {
     /// the audio route. Turn off to always use the phone. (Glasses mic uses more battery.)
     var preferGlassesMic: Bool = true
 
+    /// Microphone for meeting notes. The phone on the table hears the whole room; the glasses'
+    /// narrowband Bluetooth mic mostly hears the wearer (and is deaf while the camera streams).
+    var meetingMicSource: MeetingMicSource = .phone
+
+    /// Transcription language for meeting notes (a locale id such as "hi_IN", or "mul_IN" for
+    /// Hinglish). Empty = the phone's language.
+    var meetingLanguage: String = MeetingLanguage.automatic
+
     // MARK: - AI Customization
 
     /// Custom instructions appended to AI system prompt

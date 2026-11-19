@@ -38,7 +38,8 @@
 | **Smart Shopping** | "Is this a good deal?" - get price comparisons and reviews |
 | **Travel Guide** | "Tell me about this building" - instant history and facts |
 | **Accessibility** | Describe surroundings, read text aloud, identify objects |
-| **Meeting Assistant** | "Remember this person is John from Marketing" |
+| **Meeting Notes** | "Ok Vision, start taking notes" — transcribed on your phone (Hindi and Hinglish too), then a summary with decisions and action items |
+| **Remember People** | "Remember this person is John from Marketing" |
 | **Learning** | "What plant is this?" - identify flora, fauna, landmarks |
 | **DIY Helper** | "How do I fix this?" - show the problem, get step-by-step help |
 | **Fitness Coach** | "Is my form correct?" - real-time posture feedback |
@@ -89,6 +90,16 @@ With **SmolVLM2** selected as your local model, **"Ok Vision, take a photo and t
 - **Pixel-perfect times:** the *tool* does the date math, not the model. Say *"remind me at 6 PM"* and it lands at exactly 6:00 PM — even on the tiny on-device model.
 - One tool registry, **five backends**: OpenAI, Grok and Gemini Live (function-calling), Apple Intelligence (`Tool` protocol), and on-device Gemma 4 (JSON tool-calls) all share the same tools. (Hermes and OpenClaw bring their own.)
 - See [docs/native-tools.md](docs/native-tools.md) for the full design.
+
+### Meeting Notes — Transcribed on Your Phone, Summarised by Your AI
+- Say *"Ok Vision, start taking notes"* (or tap **Start** in the **Meetings** tab). Put the phone on the table and talk; say *"stop taking notes"* when you're done.
+- **Transcription never leaves the phone.** It uses Apple's on-device **SpeechAnalyzer** on iOS 26+ (long-form, no time limit), falling back to on-device speech recognition for English on older systems.
+- **Hindi, Hinglish and 10 more Indian languages.** Pick a language in Settings → Voice → Meeting Notes. **Hinglish** uses Apple's multilingual Indian model, so meetings that switch between Hindi and English mid-sentence come out as one transcript. Hindi and Hinglish have their own stop phrases (*"नोट्स बंद करो"*, *"notes band karo"*). The language's speech model downloads once, with progress shown.
+- **Summary with decisions and action items**, written by your current AI backend (OpenAI, Grok, Gemini, Local MLX or Apple Intelligence; Hermes and OpenClaw fall back to Apple Intelligence). Mixed-language meetings get English notes; Apple Intelligence can't write Hindi, so it writes those in English too. A short recap is read aloud.
+- **The Meetings tab:** live transcript and timer while recording, open action items across meetings, past meetings grouped by day, search, share, and **Add to Reminders** for any action item.
+- **Ask about them later** on any tool-calling backend: *"What did we decide in this morning's meeting?"*, *"What are my action items?"*
+- **Built for long meetings:** saved every 30 seconds (a crash keeps the transcript), a watchdog restarts the recognizer if it stalls, it keeps recording with the phone locked, and if the summary needs on-device AI it's written automatically the next time you open the app. Long meetings are summarised in parts sized to the model's real context window (8K tokens for Apple Intelligence on iOS 27).
+- See [docs/meeting-notes.md](docs/meeting-notes.md) for the design.
 
 ### On-Device Face Recognition (Apple Vision)
 - Teach it faces hands-free: *"Ok Vision, remember this person as Sara"*
@@ -308,6 +319,9 @@ You: "Ok Vision, take a photo and tell me what this is"
 | "Remind me to call mom at 6 PM" | Reminder in Apple Reminders (exact time) |
 | "Add a meeting tomorrow at 9:30am" / "What's on my calendar today?" | Calendar add / read |
 | "Note that I parked in lot B" / "Search my notes for parking" | Notes, auto-tagged with place + time |
+| "Start taking notes" … "Stop taking notes" | Meeting notes: transcript + summary with decisions and action items |
+| "Notes lena shuru karo" … "Notes band karo" / "नोट्स बंद करो" | Meeting notes in Hinglish or Hindi |
+| "What did we decide in the meeting?" / "What are my action items?" | Ask about recorded meetings |
 | "Start video stream" | Enter live video mode (Gemini / OpenAI Realtime / on-device SmolVLM2) |
 | "Stop video" | Exit live video mode |
 | "Slash usage" / "Slash model GPT five point five" | Run a Hermes slash command or skill (Hermes, username & password) |
@@ -359,6 +373,8 @@ Face recognition, web search, and conversation memory all run on the **on-device
 | **Activation Sound** | Play chime on wake word |
 | **Conversation Timeout** | Auto-end after silence (15s-2min) |
 | **Speech Engine** | Apple, Kokoro (on-device), Grok or OpenAI (cloud), each with a voice list and ▶ previews |
+| **Meeting Notes → Language** | Phone language, English, Hindi, Hinglish (mixed), or another Indian language |
+| **Meeting Notes → Microphone** | Phone (hears the whole room; default) or glasses (mostly hears you) |
 
 ### Hardware Section
 | Setting | Description |
@@ -461,12 +477,14 @@ OpenVision/
 │   ├── OpenClaw/           WebSocket client
 │   ├── GeminiLive/         Native audio WebSocket
 │   ├── Voice/              Wake word, STT
+│   ├── Meetings/           Meeting notes: transcriber, store, summariser
 │   ├── Audio/              Capture & playback
 │   └── TTS/                Text-to-speech
 ├── Managers/               Singletons (Settings, Glasses)
 ├── Views/
 │   ├── VoiceAgent/         Main UI
 │   ├── Settings/           Config screens
+│   ├── Meetings/           Meetings tab and meeting detail
 │   ├── History/            Chat history
 │   └── Components/         Reusable UI
 └── Utilities/              Extensions, helpers

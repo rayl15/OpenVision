@@ -135,6 +135,7 @@ enum LocalAgent {
         - Document search (the user's imported manuals/recipes/guides): {"tool":"search_docs","action":"search","query":"router error 5"}
         - Open/focus a document to work with it: {"tool":"search_docs","action":"focus","query":"router manual"}
         - Close the open document: {"tool":"search_docs","action":"unfocus"}
+        - Recorded meetings: {"tool":"meetings","action":"latest"}   (or "list", "action_items", or "search" with "query")
         TIME RULES (the tool does the date math — never compute a date or minute count yourself):
         - A specific time of day like "6pm", "9:30am", "at 6" → give "hour" in 24-hour form (6pm=18, 9am=9) and "minute" if any; add "day_offset":1 for tomorrow.
         - Only "in N minutes/hours from now" → give "minutes_from_now".
@@ -148,6 +149,7 @@ enum LocalAgent {
         User: what does my manual say about error 5 → {"tool":"search_docs","action":"search","query":"error 5"}
         User: how long does the recipe say to bake it → {"tool":"search_docs","action":"search","query":"baking time"}
         User: open my router manual → {"tool":"search_docs","action":"focus","query":"router manual"}
+        User: what did we decide in the meeting → {"tool":"meetings","action":"latest"}
         User: let's work with the lasagna recipe → {"tool":"search_docs","action":"focus","query":"lasagna recipe"}
         User: close the document → {"tool":"search_docs","action":"unfocus"}
 
@@ -225,6 +227,7 @@ enum LocalAgent {
         - {"tool":"search_docs","action":"search","query":"router error 5"}
         - {"tool":"search_docs","action":"focus","query":"router manual"}   (open a document to work with)
         - {"tool":"search_docs","action":"unfocus"}
+        - {"tool":"meetings","action":"latest"}   (recorded meeting notes; or "list", "action_items", or "search" with "query")
 
         TIME RULES (the tool does the date math — never compute a date or minute count yourself):
         - A time of day ("6pm", "9:30am", "at 6") → "hour" in 24-hour form (6pm=18) plus "minute" if any; add "day_offset":1 for tomorrow.
