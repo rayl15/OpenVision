@@ -54,9 +54,12 @@ recognizer), sets the audio route, and speaks. The Meetings tab's button goes th
 
 ## Summaries
 
-Privacy: audio never leaves the phone, but the transcript text goes to whichever backend writes the
-summary. Apple Intelligence and Local (MLX) keep it on the phone; OpenAI, Grok and Gemini receive
-it. Hermes and OpenClaw never receive it (they fall back to Apple Intelligence).
+Privacy: audio never leaves the phone. The transcript text goes to every backend the summariser
+tries: the selected one first, then Apple Intelligence if it can't or fails. So with OpenAI (or
+the OpenAI-compatible server set as its base URL), Grok or Gemini selected, that provider receives
+the transcript even if Apple Intelligence ends up writing the notes. Apple Intelligence and Local
+(MLX) keep it on the phone; Hermes and OpenClaw never receive it. The spoken recap goes through the
+selected Speech Engine, so a cloud voice (Grok, OpenAI) receives the recap text.
 
 - `AIBackend.completeText(system:prompt:)` — one-off text with no history, tools or document
   context. Hermes and OpenClaw return nil (they're agents with their own sessions), so the

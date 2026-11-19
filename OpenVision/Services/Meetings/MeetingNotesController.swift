@@ -48,6 +48,8 @@ final class MeetingNotesController: ObservableObject {
     private(set) var isStopping = false
     /// A stop phrase ended the in-progress text; fires after a short pause unless cancelled.
     private var pendingStop: Task<Void, Never>?
+    /// The in-progress text that armed `pendingStop`.
+    private var pendingStopText: String?
     /// When the words now being transcribed began, so a segment is stamped with its start time.
     private var segmentStartedAt: Date?
 
@@ -241,8 +243,11 @@ final class MeetingNotesController: ObservableObject {
         let result = await NativeToolRegistry.shared.execute(name: "create_reminder", args: ["title": item.spoken])
         if result.hasPrefix("Reminder added") {
             // Re-read: the meeting may have been re-summarised or deleted while Reminders answered.
-            if var current = store.meeting(id: meetingID),
-               let j = current.summary?.actionItems.firstIndex(where: { $0.id == itemID }) {
+            // A re-summary gives every item a new id; then match by task, but only when exactly
+            // one item has that task, so a duplicate can't be marked by mistake.
+            if var current = store.meeting(id: meetingID), let items = current.summary?.actionItems,
+               let j = items.firstIndex(where: { $0.id == itemID })
+                    ?? (items.filter { $0.task == item.task }.count == 1 ? items.firstIndex { $0.task == item.task } : nil) {
                 current.summary?.actionItems[j].addedToReminders = true
                 store.update(current)
             }
@@ -279,8 +284,11 @@ final class MeetingNotesController: ObservableObject {
             liveLine = before
             // In-progress text ends with a stop phrase, but the sentence may go on ("stop
             // transcribing… invoices manually"). Stop only after a short pause with no new words;
-            // any update that no longer ends with the phrase cancels it.
-            if pendingStop == nil {
+            // any update that no longer ends with the phrase cancels it. New words (a "please"
+            // after the phrase) restart the pause; the same words repeated don't extend it.
+            if pendingStop == nil || text != pendingStopText {
+                pendingStop?.cancel()
+                pendingStopText = text
                 pendingStop = Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     guard !Task.isCancelled else { return }
@@ -297,6 +305,7 @@ final class MeetingNotesController: ObservableObject {
     private func cancelPendingStop() {
         pendingStop?.cancel()
         pendingStop = nil
+        pendingStopText = nil
     }
 
     private func requestStop() {

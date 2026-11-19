@@ -94,7 +94,8 @@ With **SmolVLM2** selected as your local model, **"Ok Vision, take a photo and t
 ### Meeting Notes — Transcribed on Your Phone, Summarised by Your AI
 - Say *"Ok Vision, start taking notes"* (or tap **Start** in the **Meetings** tab). Put the phone on the table and talk; say *"stop taking notes"* when you're done.
 - **Audio and transcription stay on the phone.** It uses Apple's on-device **SpeechAnalyzer** on iOS 26+ (long-form, no time limit), falling back to on-device speech recognition for English on older systems. Audio is never uploaded.
-- **Where the transcript goes for the summary:** to your current AI backend. With **Apple Intelligence** or **Local (MLX)** that's on the phone too, so the whole meeting stays private. With **OpenAI, Grok or Gemini**, the transcript *text* is sent to that provider to write the notes.
+- **Where the transcript goes for the summary:** to your current AI backend. With **Apple Intelligence** or **Local (MLX)** that's on the phone too. With **OpenAI** (or the OpenAI-compatible server set as its base URL), **Grok** or **Gemini**, the transcript *text* is sent to that provider — even if the request fails and Apple Intelligence ends up writing the notes. Hermes and OpenClaw never receive it; Apple Intelligence writes their summaries.
+- **The spoken recap** (a sentence of the summary, the counts and the first action item) is read by your Speech Engine. Apple or Kokoro keep it on the phone; a cloud voice (Grok, OpenAI) receives that text. For a meeting that never leaves the phone, use Apple Intelligence or Local (MLX) with the Apple or Kokoro voice.
 - **Hindi, Hinglish and 10 more Indian languages.** Pick a language in Settings → Voice → Meeting Notes. **Hinglish** uses Apple's multilingual Indian model, so meetings that switch between Hindi and English mid-sentence come out as one transcript. Hindi and Hinglish have their own stop phrases (*"नोट्स बंद करो"*, *"notes band karo"*). The language's speech model downloads once, with progress shown.
 - **Summary with decisions and action items**, written by your current AI backend (OpenAI, Grok, Gemini, Local MLX or Apple Intelligence; Hermes and OpenClaw fall back to Apple Intelligence). Mixed-language meetings get English notes; Apple Intelligence can't write Hindi, so it writes those in English too. A short recap is read aloud.
 - **The Meetings tab:** live transcript and timer while recording, open action items across meetings, past meetings grouped by day, search, share, and **Add to Reminders** for any action item.
@@ -181,10 +182,12 @@ cp OpenVision/Config/Config.swift.example OpenVision/Config/Config.swift
 
 ### Step 2: Get Meta Credentials
 
-1. Go to [Meta Developer Console](https://developer.meta.com)
-2. Create an app or use existing one
-3. Enable "Wearables" capability
+1. Go to the [Wearables Developer Center](https://wearables.developer.meta.com/) and sign in
+2. Create an organization and an app (project), and add the **Meta Wearables** product
+3. In the project's **Configuration**, fill in your **Apple Team ID** and turn on **Camera access** with a short reason. Without these the glasses end every session with "Device unavailable"
 4. Copy your **App ID** and **Client Token**
+
+The portal shows code snippets for adding these to an app; you don't need them. OpenVision already reads the values from `Config.xcconfig` (step 3). Details: [SETUP.md §2.4](SETUP.md#24-get-your-meta-app-id-and-client-token-for-glasses).
 
 ### Step 3: Edit Config.xcconfig
 
@@ -220,7 +223,7 @@ open OpenVision.xcodeproj
 3. Build and run (⌘R)
 4. On first launch, go to **Settings → Glasses → Register**
 5. This opens Meta AI app to grant access
-6. Return to OpenVision
+6. Return to OpenVision and tap **Install/Update Glasses App** in the same screen (needed once per pair of glasses)
 
 Full instructions, CLI build commands, and troubleshooting: **[SETUP.md](SETUP.md)**
 
@@ -441,6 +444,12 @@ Face recognition, web search, and conversation memory all run on the **on-device
 - Ensure Meta AI app is installed and you're signed in
 - Enable Developer Mode in Meta AI app settings
 - Check that your Meta App ID matches the developer console
+
+### "Device unavailable" or "Session ended by device"
+The glasses connect but end the camera session seconds after it starts. Work through these in order:
+1. In the [Wearables Developer Center](https://wearables.developer.meta.com/) project's **Configuration**, make sure your **Apple Team ID** is filled in and **Camera access** is on (projects created before these fields existed lack them)
+2. In OpenVision: **Settings → Glasses → Unregister**, then **Register** again
+3. Tap **Install/Update Glasses App** in the same screen
 
 ### "Configuration Invalid" error
 - Verify `CLIENT_TOKEN` format: `AR|APP_ID|TOKEN`
