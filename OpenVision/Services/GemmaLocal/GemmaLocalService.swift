@@ -1171,6 +1171,19 @@ final class GemmaLocalService: ObservableObject {
         }
     }
 
+    /// One-off text with no history (AIBackend.completeText, used for meeting summaries). Loads the
+    /// selected model if it isn't in memory yet; throws if it isn't downloaded or the app is in the
+    /// background (Metal can't run there).
+    func completeText(system: String, prompt: String) async throws -> String? {
+        if modelContainer == nil {
+            try await connect(modelId: SettingsManager.shared.settings.localGemmaModelId)
+        }
+        return try await rawGenerate(messages: [
+            .init(role: .system, content: system),
+            .init(role: .user, content: prompt)
+        ], maxTokens: 600, temperature: 0.3)
+    }
+
     /// One-shot text generation used by the intent router. Optionally emits the cumulative text
     /// via `onPartial` per token so the caller can pipeline speech (Apple TTS) behind generation.
     private func rawGenerate(messages: [Chat.Message], maxTokens: Int, temperature: Float,

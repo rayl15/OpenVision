@@ -96,6 +96,20 @@ struct VoiceSettingsView: View {
                 Text("When on, voice input uses the glasses' Bluetooth microphone for true hands-free use, and falls back to the phone mic automatically when the glasses aren't the audio device. Uses more battery. Turn off to always use the phone mic.")
             }
 
+            // Meeting Notes Section
+            Section {
+                Picker("Language", selection: $settingsManager.settings.meetingLanguage) {
+                    ForEach(MeetingLanguage.options) { Text($0.name).tag($0.id) }
+                }
+                Picker("Microphone", selection: $settingsManager.settings.meetingMicSource) {
+                    ForEach(MeetingMicSource.allCases) { Text($0.displayName).tag($0) }
+                }
+            } header: {
+                Text("Meeting Notes")
+            } footer: {
+                Text("Say \"Ok Vision, start taking notes\" or tap the notes button on the main screen. The phone mic hears the whole room, so put the phone on the table. The glasses mic mostly hears you, and isn't used while the glasses camera is streaming. Transcription always runs on the phone; Hindi and the other Indian languages download a speech model the first time (iOS 26 or later). Pick Hinglish for meetings that switch between languages. The summary is written by your AI backend; Apple Intelligence can't write Hindi, so it writes those notes in English.")
+            }
+
             // Conversation Section
             Section {
                 Picker("Auto-End Timeout", selection: $settingsManager.settings.conversationTimeout) {

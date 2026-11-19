@@ -15,6 +15,7 @@ the model only decides *when* to call a tool and *with what arguments*; the tool
 | Calendar | `calendar` | EventKit (Events) | `today` / `upcoming` / `add` |
 | Note | `note` | UserDefaults + CoreLocation | `save` / `search` / `list` / `delete`, auto-tagged with place + time |
 | Clipboard | `copy_to_clipboard` | UIPasteboard | — |
+| Meetings | `meetings` | Meeting notes store | `latest` / `list` / `search` / `action_items` over recorded meetings (read-only; recording is started by voice — see [meeting-notes.md](meeting-notes.md)) |
 
 > There is intentionally **no alarm tool**. iOS gives third-party apps no API to create alarms in
 > the Clock app, and a plain notification is a poor substitute for a wake-up alarm. Use a reminder

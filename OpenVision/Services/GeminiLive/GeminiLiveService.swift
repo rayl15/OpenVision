@@ -214,7 +214,7 @@ final class GeminiLiveService: ObservableObject {
 
         The current date and time is \(now) in the user's local time zone. Base any time on this.
 
-        You can handle productivity hands-free by calling the matching tool: set_timer, start_pomodoro, create_reminder, calendar (read/add events), note (save/search/list notes auto-tagged with place and time), copy_to_clipboard, and search_docs (search the user's imported manuals/recipes/guides — use it whenever they ask about their documents, and answer only from what it returns). For a specific time of day (e.g. "6pm", "9:30am") pass the tool's hour (24-hour form) and minute, plus day_offset (0=today, 1=tomorrow) — let the tool do the date math. Use minutes_from_now only for "in N minutes / from now". After a tool runs, briefly confirm what you did in one sentence.
+        You can handle productivity hands-free by calling the matching tool: set_timer, start_pomodoro, create_reminder, calendar (read/add events), note (save/search/list notes auto-tagged with place and time), copy_to_clipboard, search_docs (search the user's imported manuals/recipes/guides — use it whenever they ask about their documents, and answer only from what it returns), and meetings (the user's recorded meeting notes — use it for questions about their meetings, decisions or action items). For a specific time of day (e.g. "6pm", "9:30am") pass the tool's hour (24-hour form) and minute, plus day_offset (0=today, 1=tomorrow) — let the tool do the date math. Use minutes_from_now only for "in N minutes / from now". After a tool runs, briefly confirm what you did in one sentence.
 
         If the user asks you to do something beyond your capabilities, explain what you can help with instead.
         """

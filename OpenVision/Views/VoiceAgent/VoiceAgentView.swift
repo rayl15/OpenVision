@@ -26,6 +26,7 @@ struct VoiceAgentView: View {
     @StateObject private var grokTTS = CloudTTSService.grok
     @StateObject private var openAITTS = CloudTTSService.openAI
     @StateObject private var documentFocus = DocumentFocus.shared
+    @StateObject private var meetingNotes = MeetingNotesController.shared
 
     // MARK: - Body
 
@@ -57,6 +58,22 @@ struct VoiceAgentView: View {
                     .background(Capsule().fill(Color.indigo.opacity(0.8)))
                     .padding(.top, 8)
                     .onTapGesture { documentFocus.deactivate() }
+                    .transition(.opacity)
+                }
+                if meetingNotes.isActive {
+                    meetingBanner
+                        .padding(.top, 8)
+                        .transition(.opacity)
+                } else if meetingNotes.summarizingID != nil {
+                    HStack(spacing: 6) {
+                        ProgressView().tint(.white).scaleEffect(0.7)
+                        Text("Writing meeting notes…").font(.caption.bold())
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.black.opacity(0.55)))
+                    .padding(.top, 8)
                     .transition(.opacity)
                 }
                 Spacer()
@@ -166,6 +183,17 @@ struct VoiceAgentView: View {
                     .transition(.opacity)
             }
 
+            // Meeting notes: transcribe on the phone, summarise at the end.
+            Button {
+                viewModel.toggleMeetingNotes()
+            } label: {
+                Image(systemName: meetingNotes.isActive ? "stop.circle.fill" : "note.text")
+                    .font(.title2)
+                    .foregroundColor(meetingNotes.isActive ? .orange : .white)
+                    .padding(.horizontal, 4)
+            }
+            .accessibilityLabel(meetingNotes.isActive ? "Stop meeting notes" : "Start meeting notes")
+
             // POV recording toggle (glasses video + as-heard audio → Photos).
             if glassesManager.isRegistered {
                 Button {
@@ -202,6 +230,44 @@ struct VoiceAgentView: View {
             )
         }
         .padding(.horizontal)
+    }
+
+    // MARK: - Meeting banner
+
+    /// Elapsed time, the words being transcribed now, and a Stop button.
+    private var meetingBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Circle().fill(.orange).frame(width: 8, height: 8)
+                Text("Taking notes").font(.caption.bold())
+                if let started = meetingNotes.startedAt {
+                    TimelineView(.periodic(from: started, by: 1)) { context in
+                        Text(MeetingNotesLogic.clock(context.date.timeIntervalSince(started)))
+                            .font(.caption.monospacedDigit())
+                            .opacity(0.8)
+                    }
+                }
+                Spacer()
+                Button("Stop") { viewModel.toggleMeetingNotes() }
+                    .font(.caption.bold())
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.orange))
+            }
+            Text(meetingNotes.statusLine
+                 ?? (meetingNotes.liveLine.isEmpty
+                     ? "Listening… say \(MeetingNotesLogic.stopHint(localeID: settingsManager.settings.meetingLanguage)) to finish."
+                     : meetingNotes.liveLine))
+                .font(.caption)
+                .lineLimit(2)
+                .truncationMode(.head)
+                .opacity(0.85)
+        }
+        .foregroundColor(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.ultraThinMaterial))
+        .padding(.horizontal)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Center Content

@@ -196,6 +196,21 @@ final class VoiceCommandService: ObservableObject {
 
     // MARK: - Start/Stop
 
+    /// While true, the mic belongs to something else (meeting notes) and `startListening` does
+    /// nothing. Every other restart path already requires `isListening`, so this one guard keeps
+    /// the wake-word listener off until whoever suspended it calls `resume`.
+    private(set) var isSuspended = false
+
+    /// Stop listening and keep it stopped, whoever asks to start it, until `resume()`.
+    func suspend() {
+        isSuspended = true
+        stopListening()
+    }
+
+    func resume() {
+        isSuspended = false
+    }
+
     /// Start listening for wake word or commands
     func startListening() throws {
         guard authorizationStatus == .authorized else {
@@ -203,6 +218,10 @@ final class VoiceCommandService: ObservableObject {
         }
 
         guard !isListening else { return }
+        guard !isSuspended else {
+            print("[VoiceCommand] Suspended (meeting notes own the mic) — not starting")
+            return
+        }
 
         // Setup audio engine
         audioEngine = AVAudioEngine()

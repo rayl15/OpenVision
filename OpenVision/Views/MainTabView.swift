@@ -1,5 +1,5 @@
 // OpenVision - MainTabView.swift
-// Main tab navigation: Voice Agent, History, Settings
+// Main tab navigation: Voice Agent, Meetings, History, Settings
 
 import SwiftUI
 
@@ -18,12 +18,14 @@ struct MainTabView: View {
 
     enum Tab: String, CaseIterable {
         case voice = "Voice"
+        case meetings = "Meetings"
         case history = "History"
         case settings = "Settings"
 
         var icon: String {
             switch self {
             case .voice: return "waveform.circle.fill"
+            case .meetings: return "note.text"
             case .history: return "clock.fill"
             case .settings: return "gearshape.fill"
             }
@@ -32,6 +34,7 @@ struct MainTabView: View {
         var selectedIcon: String {
             switch self {
             case .voice: return "waveform.circle.fill"
+            case .meetings: return "note.text"
             case .history: return "clock.fill"
             case .settings: return "gearshape.fill"
             }
@@ -48,6 +51,13 @@ struct MainTabView: View {
                     Label(Tab.voice.rawValue, systemImage: Tab.voice.icon)
                 }
                 .tag(Tab.voice)
+
+            // Meetings Tab
+            MeetingsView()
+                .tabItem {
+                    Label(Tab.meetings.rawValue, systemImage: Tab.meetings.icon)
+                }
+                .tag(Tab.meetings)
 
             // History Tab
             ConversationListView()

@@ -31,11 +31,24 @@ protocol AIBackend: AnyObject {
     var localLLM: LocalTextLLM? { get }
     /// Whether sendMessage accepts imageData (OpenClaw, OpenAI, Grok, Hermes, Gemma).
     var supportsImageInput: Bool { get }
+    /// One-off text generation with no conversation history, document context or tools — used to
+    /// summarise meetings. Returns nil when the backend can't do this (Hermes and OpenClaw are
+    /// agents with their own sessions), so the caller can fall back to another model.
+    func completeText(system: String, prompt: String) async throws -> String?
+    /// The context window, in tokens, of an on-device model behind `completeText`, so long input
+    /// can be split to fit. nil for cloud models, whose windows are large.
+    var textContextTokens: Int? { get }
+    /// Whether `completeText` can write in this language (a locale id like "hi_IN"; nil = the
+    /// phone's language). Apple Intelligence has no Hindi, for example.
+    func canWriteLanguage(_ localeID: String?) -> Bool
 }
 
 extension AIBackend {
     var localLLM: LocalTextLLM? { nil }
     var supportsImageInput: Bool { false }
+    func completeText(system: String, prompt: String) async throws -> String? { nil }
+    var textContextTokens: Int? { nil }
+    func canWriteLanguage(_ localeID: String?) -> Bool { true }
 }
 
 /// Maps the user's selected `AIBackendType` to the live service instance.

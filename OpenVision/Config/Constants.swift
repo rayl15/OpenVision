@@ -32,6 +32,9 @@ enum Constants {
         /// Model name (native audio model for real-time voice + video)
         static let modelName = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 
+        /// Text model for one-off requests over REST (meeting summaries), with the same API key.
+        static let textModelName = "gemini-2.5-flash"
+
         /// Input audio sample rate (Hz)
         static let inputSampleRate = 16000
 

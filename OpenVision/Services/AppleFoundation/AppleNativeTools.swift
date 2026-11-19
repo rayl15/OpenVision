@@ -15,7 +15,7 @@ enum AppleNativeTools {
     /// All native tools, ready to hand to a LanguageModelSession.
     static var all: [any Tool] {
         [AppleTimerTool(), ApplePomodoroTool(), AppleReminderTool(),
-         AppleCalendarTool(), AppleNoteTool(), AppleClipboardTool(), AppleDocsTool()]
+         AppleCalendarTool(), AppleNoteTool(), AppleClipboardTool(), AppleDocsTool(), AppleMeetingsTool()]
     }
 
     /// Run a native tool by name with a cleaned-up arg dict (drops empty strings / zeros meaning "unset").
@@ -145,6 +145,21 @@ struct AppleDocsTool: Tool {
     @Generable struct Arguments {
         @Guide(description: "search, list, focus, or unfocus") let action: String
         @Guide(description: "What to look for (search), or the document name (focus). Empty otherwise.") let query: String
+    }
+    func call(arguments: Arguments) async throws -> String {
+        var args: [String: Any] = ["action": arguments.action]
+        if !arguments.query.isEmpty { args["query"] = arguments.query }
+        return await AppleNativeTools.run(name, args)
+    }
+}
+
+@available(iOS 26.0, *)
+struct AppleMeetingsTool: Tool {
+    let name = "meetings"
+    let description = "Look up the user's recorded meeting notes. latest: the most recent meeting's summary. list: recent meetings. search: meetings mentioning the query. action_items: open action items."
+    @Generable struct Arguments {
+        @Guide(description: "latest, list, search, or action_items") let action: String
+        @Guide(description: "Words to look for (search). Empty otherwise.") let query: String
     }
     func call(arguments: Arguments) async throws -> String {
         var args: [String: Any] = ["action": arguments.action]

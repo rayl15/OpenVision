@@ -69,6 +69,9 @@ whichever backend the user selected through it — no downcasts, no per-backend 
     // Capabilities (defaulted):
     var localLLM: LocalTextLLM? { get }        // on-device routing brain
     var supportsImageInput: Bool { get }       // photo commands attach a glasses frame
+    func completeText(system: String, prompt: String) async throws -> String?  // one-off text, no history/tools; nil = unsupported
+    var textContextTokens: Int? { get }        // on-device context window; nil = large cloud model
+    func canWriteLanguage(_ localeID: String?) -> Bool  // e.g. Apple Intelligence has no Hindi
 }
 ```
 

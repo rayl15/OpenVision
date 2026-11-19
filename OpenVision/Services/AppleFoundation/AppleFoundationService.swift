@@ -103,10 +103,31 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
         isConnected = true
     }
 
+    // MARK: - Model limits
+
+    /// The system model's context window. iOS 27 reports 8,192 tokens (iOS 26's model had 4,096);
+    /// iOS before 26.4 can't report it, so assume the smaller window there.
+    var modelContextTokens: Int {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.4, *) { return SystemLanguageModel.default.contextSize }
+        #endif
+        return 4_096
+    }
+
+    /// Whether the system model supports a language (locale id like "hi_IN"; nil = the phone's).
+    func supportsLanguage(_ localeID: String?) -> Bool {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            return SystemLanguageModel.default.supportsLocale(localeID.map { Locale(identifier: $0) } ?? .current)
+        }
+        #endif
+        return false
+    }
+
     // MARK: - Core generation
 
     /// One-shot generation: `system` becomes the session instructions, `user` the prompt.
-    private func generate(system: String, user: String) async -> String? {
+    func generate(system: String, user: String) async -> String? {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             guard isAvailable else { return nil }
@@ -154,7 +175,7 @@ final class AppleFoundationService: ObservableObject, LocalTextLLM {
 
     CRITICAL: web_search returns its results immediately, inside this same reply. You must read those results and give the final answer now. NEVER say you will search "later", "shortly", "in a moment", or provide the answer "once it's available" — there is no later; this is your only turn. If the search returns nothing useful, simply say you couldn't find that right now — do not promise to follow up.
 
-    You can also handle productivity hands-free by calling the matching tool: set_timer, start_pomodoro, create_reminder, calendar (read/add events), note (save/search/list notes auto-tagged with place and time), copy_to_clipboard, and search_docs (search the user's imported manuals/recipes/guides — use it whenever they ask about their documents, and answer only from what it returns). After a tool runs, briefly confirm what you did in one sentence.
+    You can also handle productivity hands-free by calling the matching tool: set_timer, start_pomodoro, create_reminder, calendar (read/add events), note (save/search/list notes auto-tagged with place and time), copy_to_clipboard, search_docs (search the user's imported manuals/recipes/guides — use it whenever they ask about their documents, and answer only from what it returns), and meetings (the user's recorded meeting notes — use it for questions about their meetings, decisions or action items). After a tool runs, briefly confirm what you did in one sentence.
     """
     }
 

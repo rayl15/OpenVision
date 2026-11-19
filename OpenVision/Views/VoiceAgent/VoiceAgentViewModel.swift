@@ -26,6 +26,7 @@ final class VoiceAgentViewModel: ObservableObject {
     let audioCapture = AudioCaptureService()
     let audioPlayback = AudioPlaybackService()
     let sessionRecorder = SessionRecorder.shared
+    let meetingNotes = MeetingNotesController.shared
 
     // MARK: - Published UI state
 
@@ -121,6 +122,7 @@ final class VoiceAgentViewModel: ObservableObject {
     func onAppear() {
         setupVoiceCommandService()
         setupGlassesCallbacks()
+        setupMeetingNotesCallbacks()
         preloadLocalModelIfNeeded()
         // Resume wake-word listening when returning to this screen. onDisappear stops it
         // (e.g. when navigating to Settings), and the one-time .task doesn't re-run on return —
@@ -269,6 +271,11 @@ final class VoiceAgentViewModel: ObservableObject {
     }
 
     func startSession() {
+        // Meeting notes own the mic and the audio route until they stop.
+        guard !meetingNotes.isActive else {
+            errorMessage = "Meeting notes are running. Stop them first."
+            return
+        }
         // Check configuration
         guard settingsManager.settings.isCurrentBackendConfigured else {
             errorMessage = "Please configure \(settingsManager.settings.aiBackend.displayName) in Settings"
@@ -880,6 +887,12 @@ final class VoiceAgentViewModel: ObservableObject {
     /// Send command to AI backend
     private func sendCommand(_ command: String) async {
         let lowerCommand = command.lowercased()
+
+        // "Start taking notes": handled here, before any backend, so it works the same everywhere.
+        if MeetingNotesLogic.isStartCommand(command) {
+            await startMeetingNotes()
+            return
+        }
 
         // Check for "stop" command - stops TTS and waits for next command.
         // Matched on WORDS, not substrings: `.contains("stop")` treated "what's on the desktop"
@@ -1757,6 +1770,138 @@ final class VoiceAgentViewModel: ObservableObject {
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_500_000_000)
             if self?.recordingStatus == text { self?.recordingStatus = nil }
+        }
+    }
+
+    // MARK: - Meeting notes
+
+    private var isStartingMeeting = false
+
+    private func setupMeetingNotesCallbacks() {
+        // The Meetings tab's Start/Stop button: same path as the voice commands.
+        meetingNotes.onToggleRequested = { [weak self] in self?.toggleMeetingNotes() }
+        meetingNotes.onPreparing = { [weak self] _ in
+            // The mic isn't on yet during a download, so speaking can't end up in the transcript.
+            self?.speakNotice("One moment. I'm downloading the speech model for this language first. That only happens once.")
+        }
+        meetingNotes.onStopRequested = { [weak self] in
+            Task { await self?.stopMeetingNotes() }
+        }
+        meetingNotes.onFailure = { [weak self] reason in
+            Task {
+                self?.errorMessage = "Meeting notes stopped: \(reason) What was transcribed is saved."
+                await self?.stopMeetingNotes()
+            }
+        }
+    }
+
+    /// Notes button on the main screen.
+    func toggleMeetingNotes() {
+        Task {
+            if meetingNotes.isActive { await stopMeetingNotes() }
+            else if !isStartingMeeting { await startMeetingNotes() }
+        }
+    }
+
+    private func startMeetingNotes() async {
+        // The meeting only counts as active once listening starts, after the spoken "Taking
+        // notes" — so a second tap or phrase in that window must be ignored here, or its failure
+        // path would turn the wake-word listener back on next to the meeting's recognizer.
+        guard !meetingNotes.isActive, !isStartingMeeting else { return }
+        isStartingMeeting = true
+        defer { isStartingMeeting = false }
+        guard !isLiveVideoMode else {
+            speakNotice("Stop live video first, then I can take notes.")
+            return
+        }
+        // The meeting gets the mic: end the assistant session and keep the wake-word listener off
+        // until the meeting stops (otherwise any restart path would start a second recognizer).
+        cancelPendingAnswer()
+        voiceCommandService.suspend()
+        if isSessionActive { stopSession() }
+
+        // Say it before listening starts, or the phone mic would transcribe our own voice.
+        speakNotice("Taking notes. Say \"stop taking notes\" when you're done.")
+        await waitForSpeechToFinish(timeout: 8)
+
+        applyMeetingAudioRoute()
+        do {
+            try await meetingNotes.start()
+        } catch MeetingNotesError.cancelled {
+            // Stopped during setup: stopMeetingNotes already restored listening and said so.
+        } catch {
+            NSLog("[Meeting] couldn't start: %@", "\(error)")
+            voiceCommandService.resume()
+            startWakeWordListening()
+            errorMessage = error.localizedDescription
+            speakNotice("I couldn't start taking notes.")
+        }
+    }
+
+    private func stopMeetingNotes() async {
+        guard meetingNotes.isActive, !meetingNotes.isStopping else { return }
+        let outcome = await meetingNotes.stop()
+        if case .alreadyStopping = outcome { return }
+        voiceCommandService.resume()
+        startWakeWordListening()   // also puts the audio route back the way the assistant wants it
+
+        let meeting: Meeting
+        switch outcome {
+        case .saved(let m):
+            meeting = m
+        case .nothingTranscribed:
+            speakNotice("I didn't catch anything, so there's nothing to save.")
+            return
+        case .cancelledDuringSetup:
+            speakNotice("Stopped. I hadn't started listening yet. The speech model keeps downloading, so next time will start straight away.")
+            return
+        case .alreadyStopping:
+            return
+        }
+        if meetingNotes.summaryMustWaitForApp {
+            await meetingNotes.summarize(id: meeting.id)   // marks it to be written when the app opens
+            speakNotice("Got it. I've saved the transcript, and I'll write up the notes when you next open the app.")
+            return
+        }
+        speakNotice("Got it. Writing up the notes.")
+        let updated = await meetingNotes.summarize(id: meeting.id)
+        await waitForSpeechToFinish(timeout: 6)
+        if let updated, updated.status == .ready, let summary = updated.summary {
+            speakNotice(MeetingNotesLogic.spokenRecap(summary))
+        } else {
+            let why = updated?.summaryError.map { " \($0)" } ?? ""
+            speakNotice("I saved the transcript, but couldn't write the summary.\(why) You can try again from the Meetings tab.")
+        }
+    }
+
+    /// The mic chosen in Settings → Voice → Meeting Notes. The glasses mic is deaf while the
+    /// camera streams, so that case uses the phone.
+    private func applyMeetingAudioRoute() {
+        if settingsManager.settings.meetingMicSource == .glasses, glassesManager.isRegistered,
+           !glassesManager.isStreaming,
+           (try? AudioSessionManager.shared.configureForGlasses()) == true {
+            NSLog("[Meeting] using the glasses mic")
+            return
+        }
+        try? AudioSessionManager.shared.configureForPhone()
+        NSLog("[Meeting] using the phone mic")
+    }
+
+    /// Speak a status line without adding it to History (it isn't a reply to anything).
+    private func speakNotice(_ text: String) {
+        if let neuralTTS {
+            Task { await neuralTTS.speak(text) }
+        } else {
+            ttsService.speak(text)
+        }
+    }
+
+    private func waitForSpeechToFinish(timeout: TimeInterval) async {
+        // Give the engine a moment to start, then wait for it to go quiet.
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, ttsService.isSpeaking || NeuralSpeech.isAnySpeaking {
+            try? await Task.sleep(nanoseconds: 150_000_000)
         }
     }
 

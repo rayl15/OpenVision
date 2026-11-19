@@ -5,6 +5,31 @@ All notable changes to OpenVision will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Meeting notes** — "Ok Vision, start taking notes" (or **Start** in the new **Meetings** tab) transcribes a meeting on the phone and, when you say "stop taking notes", writes a summary with a title, decisions and action items using the current AI backend, then reads a short recap aloud. Transcripts never leave the phone: Apple's on-device `SpeechAnalyzer` on iOS 26+, on-device `SFSpeechRecognizer` for English otherwise
+- **Meeting languages** — Settings → Voice → Meeting Notes → Language: English, **Hindi**, **Hinglish** (Apple's `mul_IN` multilingual model, for meetings that switch languages mid-sentence) and 10 more Indian languages, with Hindi and Hinglish stop phrases. A language's speech model downloads once, with progress; meeting audio is never sent to Apple's servers instead
+- **Meetings tab** — live transcript and timer, open action items across meetings, meetings grouped by day, search, share, re-summarise, delete, and **Add to Reminders** per action item
+- **`meetings` tool** on OpenAI, Grok, Gemini Live, Apple Intelligence and Gemma: "what did we decide this morning?", "what are my action items?"
+- `AIBackend.completeText(system:prompt:)` — one-off text with no history or tools, implemented for OpenAI (API key and ChatGPT subscription), Grok, Gemini (REST, same key), Apple Intelligence and Gemma; plus `textContextTokens` and `canWriteLanguage(_:)` so callers can size requests and pick an output language
+- Meeting notes mic setting: phone (default, hears the room) or glasses
+
+### Changed
+- Apple Intelligence requests are sized from the model's reported context window (`SystemLanguageModel.contextSize`, 8,192 tokens on iOS 27) instead of assuming 4,096
+- `VoiceCommandService` can be suspended, so the wake-word listener can't start alongside another mic user
+
+### Reliability (meeting notes)
+- Saved every 30 s; a meeting cut off by a crash reopens with its transcript and is summarised automatically
+- Watchdog: re-arms a silent mic, restarts a recognizer that ends or stalls (20 s of speech with no text), keeps unfinished words across restarts, and never lets a stuck recognizer hang "stop"
+- Summaries that need on-device AI while the phone is locked are written automatically the next time the app is opened
+- Once-a-minute health log (words, restarts, memory, CPU, thermal state, battery, foreground/background) for soak tests; counts only, never transcript text
+
+### Known limitations
+- Recording with the phone locked has not been verified on a device yet; a 5-minute foreground test ran at ~100–130 MB, ~25% CPU and nominal thermal state
+- No speaker names (Apple's recognizers don't separate voices)
+- The stop phrase must be said in English, Hindi or Hinglish; the Stop button works for every language
+
 ## [2.14.0] - 2026-10-02
 
 ### Added
