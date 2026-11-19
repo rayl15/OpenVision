@@ -243,11 +243,12 @@ final class MeetingNotesController: ObservableObject {
         let result = await NativeToolRegistry.shared.execute(name: "create_reminder", args: ["title": item.spoken])
         if result.hasPrefix("Reminder added") {
             // Re-read: the meeting may have been re-summarised or deleted while Reminders answered.
-            // A re-summary gives every item a new id; then match by task, but only when exactly
-            // one item has that task, so a duplicate can't be marked by mistake.
+            // A re-summary gives every item a new id; then match the same task, owner and due date,
+            // and only when exactly one item matches, so someone else's item can't be ticked.
+            let sameItem: (ActionItem) -> Bool = { $0.task == item.task && $0.owner == item.owner && $0.due == item.due }
             if var current = store.meeting(id: meetingID), let items = current.summary?.actionItems,
                let j = items.firstIndex(where: { $0.id == itemID })
-                    ?? (items.filter { $0.task == item.task }.count == 1 ? items.firstIndex { $0.task == item.task } : nil) {
+                    ?? (items.filter(sameItem).count == 1 ? items.firstIndex(where: sameItem) : nil) {
                 current.summary?.actionItems[j].addedToReminders = true
                 store.update(current)
             }

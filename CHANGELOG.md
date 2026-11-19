@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - After a re-summary, Add to Reminders lost its tick (the action item's id changed), so the same reminder could be added twice
 - The storage-failure warning could be cut off by the next spoken notice
 - The Meetings tab named Hermes/OpenClaw as the summary writer (it's Apple Intelligence) and didn't update when the backend changed
-- Privacy notes now cover OpenAI-compatible base URLs, the cloud request made before an Apple Intelligence fallback, and the spoken recap going to a cloud voice
+- Privacy notes now cover OpenAI-compatible base URLs, ChatGPT sign-in (chatgpt.com), the cloud request made before an Apple Intelligence fallback, the Hermes/OpenClaw fallback, and the spoken recap going to a cloud voice
+- Add to Reminders' fallback match after a re-summary now requires the same task, owner and due date, so another person's item can't be ticked
+- A stop flow still speaking a warning can no longer speak over, or summarise during, a meeting started meanwhile
 
 ### Changed (docs)
 - README and SETUP: current Wearables Developer Center steps (Apple Team ID and Camera access fields), **Install/Update Glasses App** after registering, and a "Device unavailable" troubleshooting entry

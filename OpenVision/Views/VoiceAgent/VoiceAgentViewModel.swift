@@ -1776,6 +1776,9 @@ final class VoiceAgentViewModel: ObservableObject {
     // MARK: - Meeting notes
 
     private var isStartingMeeting = false
+    /// Bumped when a meeting starts. A stop flow that waits (for a warning to finish speaking)
+    /// checks it afterwards, so it can't speak over, or summarise during, a newer meeting.
+    private var meetingGeneration = 0
 
     private func setupMeetingNotesCallbacks() {
         // The Meetings tab's Start/Stop button: same path as the voice commands.
@@ -1808,6 +1811,7 @@ final class VoiceAgentViewModel: ObservableObject {
         // notes" — so a second tap or phrase in that window must be ignored here, or its failure
         // path would turn the wake-word listener back on next to the meeting's recognizer.
         guard !meetingNotes.isActive, !isStartingMeeting else { return }
+        meetingGeneration += 1   // any earlier meeting's stop flow still speaking now stands down
         isStartingMeeting = true
         defer { isStartingMeeting = false }
         guard !isLiveVideoMode else {
@@ -1842,6 +1846,7 @@ final class VoiceAgentViewModel: ObservableObject {
         guard meetingNotes.isActive, !meetingNotes.isStopping else { return }
         let outcome = await meetingNotes.stop()
         if case .alreadyStopping = outcome { return }
+        let generation = meetingGeneration
         voiceCommandService.resume()
         startWakeWordListening()   // also puts the audio route back the way the assistant wants it
 
@@ -1854,6 +1859,7 @@ final class VoiceAgentViewModel: ObservableObject {
             // A new notice would cut this one off (the Apple and cloud voices stop on a new
             // speak), so let the warning finish first.
             await waitForSpeechToFinish(timeout: 20)
+            guard generation == meetingGeneration else { return }   // a new meeting started meanwhile
             meeting = m
         case .nothingTranscribed:
             speakNotice("I didn't catch anything, so there's nothing to save.")
@@ -1872,6 +1878,9 @@ final class VoiceAgentViewModel: ObservableObject {
         speakNotice("Got it. Writing up the notes.")
         let updated = await meetingNotes.summarize(id: meeting.id)
         await waitForSpeechToFinish(timeout: 6)
+        // A new meeting started while this summary was written: the notes are saved, but don't
+        // talk over the new one.
+        guard generation == meetingGeneration else { return }
         if let updated, updated.status == .ready, let summary = updated.summary {
             speakNotice(MeetingNotesLogic.spokenRecap(summary))
         } else {

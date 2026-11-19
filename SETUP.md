@@ -103,8 +103,9 @@ If you want to use Meta Ray-Ban glasses:
    **Camera access** with a short reason. These fields are newer than some older guides; without
    them Meta never issues the glasses permission, and sessions die with "Device unavailable"
 5. Copy your **App ID** and **Client Token** from the dashboard
-6. Add both to `Config.xcconfig`, along with a URL scheme (ignore the portal's code snippets —
-   `project.yml` and `Info.plist` already read these values):
+6. Add both to `Config.xcconfig`, along with a URL scheme. Ignore the portal's code snippets:
+   the generated project uses `Config.xcconfig` as its base configuration and passes these values
+   into `Info.plist`, so nothing else needs editing or exporting:
 
 ```
 META_APP_ID = 1234567890

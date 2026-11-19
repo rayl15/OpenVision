@@ -187,7 +187,7 @@ cp OpenVision/Config/Config.swift.example OpenVision/Config/Config.swift
 3. In the project's **Configuration**, fill in your **Apple Team ID** and turn on **Camera access** with a short reason. Without these the glasses end every session with "Device unavailable"
 4. Copy your **App ID** and **Client Token**
 
-The portal shows code snippets for adding these to an app; you don't need them. OpenVision already reads the values from `Config.xcconfig` (step 3). Details: [SETUP.md §2.4](SETUP.md#24-get-your-meta-app-id-and-client-token-for-glasses).
+The portal shows code snippets for adding these to an app; you don't need them. The project passes the values from `Config.xcconfig` (step 3) into `Info.plist` for you. Details: [SETUP.md §2.4](SETUP.md#24-get-your-meta-app-id-and-client-token-for-glasses).
 
 ### Step 3: Edit Config.xcconfig
 
