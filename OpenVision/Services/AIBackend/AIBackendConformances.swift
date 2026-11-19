@@ -170,10 +170,12 @@ extension GeminiLiveService: AIBackend {
 enum PlainCompletion {
     static func chat(model: String, system: String, prompt: String, label: String,
                      send: (Data) async throws -> (Data, URLResponse)) async throws -> String {
+        // No max_tokens: newer OpenAI models (gpt-5, o-series) reject it in favour of
+        // max_completion_tokens, and on reasoning models a cap can be used up by reasoning and
+        // return no text. The prompt already asks for a short JSON answer.
         let body: [String: Any] = [
             "model": model,
             "messages": [["role": "system", "content": system], ["role": "user", "content": prompt]],
-            "max_tokens": 1500,
         ]
         let (data, response) = try await send(try JSONSerialization.data(withJSONObject: body))
         guard let http = response as? HTTPURLResponse else { throw CloudChatError.noResponse(label) }

@@ -38,7 +38,7 @@
 | **Smart Shopping** | "Is this a good deal?" - get price comparisons and reviews |
 | **Travel Guide** | "Tell me about this building" - instant history and facts |
 | **Accessibility** | Describe surroundings, read text aloud, identify objects |
-| **Meeting Notes** | "Ok Vision, start taking notes" — transcribed on your phone (Hindi and Hinglish too), then a summary with decisions and action items |
+| **Meeting Notes** | "Ok Vision, start taking notes" — transcribed on your phone (Hindi and Hinglish too), then a summary with decisions and action items from your AI backend |
 | **Remember People** | "Remember this person is John from Marketing" |
 | **Learning** | "What plant is this?" - identify flora, fauna, landmarks |
 | **DIY Helper** | "How do I fix this?" - show the problem, get step-by-step help |
@@ -93,7 +93,8 @@ With **SmolVLM2** selected as your local model, **"Ok Vision, take a photo and t
 
 ### Meeting Notes — Transcribed on Your Phone, Summarised by Your AI
 - Say *"Ok Vision, start taking notes"* (or tap **Start** in the **Meetings** tab). Put the phone on the table and talk; say *"stop taking notes"* when you're done.
-- **Transcription never leaves the phone.** It uses Apple's on-device **SpeechAnalyzer** on iOS 26+ (long-form, no time limit), falling back to on-device speech recognition for English on older systems.
+- **Audio and transcription stay on the phone.** It uses Apple's on-device **SpeechAnalyzer** on iOS 26+ (long-form, no time limit), falling back to on-device speech recognition for English on older systems. Audio is never uploaded.
+- **Where the transcript goes for the summary:** to your current AI backend. With **Apple Intelligence** or **Local (MLX)** that's on the phone too, so the whole meeting stays private. With **OpenAI, Grok or Gemini**, the transcript *text* is sent to that provider to write the notes.
 - **Hindi, Hinglish and 10 more Indian languages.** Pick a language in Settings → Voice → Meeting Notes. **Hinglish** uses Apple's multilingual Indian model, so meetings that switch between Hindi and English mid-sentence come out as one transcript. Hindi and Hinglish have their own stop phrases (*"नोट्स बंद करो"*, *"notes band karo"*). The language's speech model downloads once, with progress shown.
 - **Summary with decisions and action items**, written by your current AI backend (OpenAI, Grok, Gemini, Local MLX or Apple Intelligence; Hermes and OpenClaw fall back to Apple Intelligence). Mixed-language meetings get English notes; Apple Intelligence can't write Hindi, so it writes those in English too. A short recap is read aloud.
 - **The Meetings tab:** live transcript and timer while recording, open action items across meetings, past meetings grouped by day, search, share, and **Add to Reminders** for any action item.

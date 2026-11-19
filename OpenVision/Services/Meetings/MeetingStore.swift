@@ -44,15 +44,29 @@ final class MeetingStore: ObservableObject {
 
     func meeting(id: UUID) -> Meeting? { meetings.first { $0.id == id } }
 
-    /// Insert or replace, and write it to disk.
-    func save(_ meeting: Meeting) {
+    /// Insert or replace, and write it to disk. False if the file couldn't be written (the
+    /// meeting is still in memory for this session).
+    @discardableResult
+    func save(_ meeting: Meeting) -> Bool {
         if let i = meetings.firstIndex(where: { $0.id == meeting.id }) {
             meetings[i] = meeting
         } else {
             meetings.insert(meeting, at: 0)
             meetings.sort { $0.startedAt > $1.startedAt }
         }
-        write(meeting)
+        return write(meeting)
+    }
+
+    /// Replace a meeting only if it still exists. For writes that land after an await (a
+    /// summary, a reminder): the user may have deleted the meeting meanwhile, and a plain save
+    /// would bring it back.
+    @discardableResult
+    func update(_ meeting: Meeting) -> Bool {
+        guard meetings.contains(where: { $0.id == meeting.id }) else {
+            NSLog("[Meeting] not saving a meeting that was deleted meanwhile")
+            return false
+        }
+        return save(meeting)
     }
 
     func delete(id: UUID) {
@@ -62,12 +76,19 @@ final class MeetingStore: ObservableObject {
 
     private func url(for id: UUID) -> URL { directory.appendingPathComponent("\(id.uuidString).json") }
 
-    private func write(_ meeting: Meeting) {
+    @discardableResult
+    private func write(_ meeting: Meeting) -> Bool {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(meeting) else { return }
-        // Transcripts are private: protect them while the phone is locked after first unlock.
-        try? data.write(to: url(for: meeting.id), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        do {
+            let data = try encoder.encode(meeting)
+            // Transcripts are private: protect them while the phone is locked after first unlock.
+            try data.write(to: url(for: meeting.id), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            return true
+        } catch {
+            NSLog("[Meeting] couldn't write meeting file: %@", "\(error)")
+            return false
+        }
     }
 
     // MARK: - Search (for the meetings tool)

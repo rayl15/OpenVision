@@ -100,7 +100,7 @@ struct MeetingsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                Text("Language: \(MeetingLanguage.name(for: SettingsManager.shared.settings.meetingLanguage)). Or say “Ok Vision, start taking notes”. Transcription runs on your phone; your AI backend writes the summary when you stop.")
+                Text("Language: \(MeetingLanguage.name(for: SettingsManager.shared.settings.meetingLanguage)). Or say “Ok Vision, start taking notes”. Transcription runs on your phone; when you stop, the transcript goes to your AI backend (\(SettingsManager.shared.settings.aiBackend.displayName)) to write the summary.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

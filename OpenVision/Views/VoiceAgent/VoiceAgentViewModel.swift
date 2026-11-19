@@ -1849,6 +1849,9 @@ final class VoiceAgentViewModel: ObservableObject {
         switch outcome {
         case .saved(let m):
             meeting = m
+        case .savedInMemoryOnly(let m):
+            speakNotice("Careful: I couldn't save this meeting to the phone's storage. It's in the Meetings tab until you close the app, so share it from there to keep it.")
+            meeting = m
         case .nothingTranscribed:
             speakNotice("I didn't catch anything, so there's nothing to save.")
             return
