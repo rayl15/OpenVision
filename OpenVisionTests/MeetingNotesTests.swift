@@ -31,6 +31,13 @@ final class MeetingNotesTests: XCTestCase {
         XCTAssertTrue(MeetingNotesLogic.isStartCommand("record this meeting please"))
     }
 
+    func testNegatedStartIsRejected() {
+        // CodeRabbit (PR #76): one non-filler word was allowed, so a negation started recording.
+        XCTAssertFalse(MeetingNotesLogic.isStartCommand("don't record this meeting"))
+        XCTAssertFalse(MeetingNotesLogic.isStartCommand("never start taking notes"))
+        XCTAssertFalse(MeetingNotesLogic.isStartCommand("record this meeting tomorrow"))
+    }
+
     // MARK: - Stop phrase
 
     func testNoStopPhrase() {

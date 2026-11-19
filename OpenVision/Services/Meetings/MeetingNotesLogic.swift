@@ -45,16 +45,16 @@ enum MeetingNotesLogic {
         "go", "ahead", "and", "thanks", "thank", "ji", "abhi", "yaar",
     ]
 
-    /// A start phrase that is the whole command, give or take a filler or two. Matching anywhere
-    /// in a sentence started recording on "remind me to record the meeting at 3".
+    /// A start phrase that is the whole command: every other word must be a filler (wake word,
+    /// politeness). Matching anywhere started recording on "remind me to record the meeting at 3",
+    /// and allowing any one extra word let "don't record this meeting" through.
     static func isStartCommand(_ text: String) -> Bool {
         let t = normalized(text)
-        guard let phrase = startPhrases.first(where: { t.contains($0) }) else { return false }
-        let phraseWords = phrase.split(separator: " ").count
-        let otherWords = t.split(separator: " ").count - phraseWords
-        let extra = t.replacingOccurrences(of: phrase, with: " ").split(separator: " ")
-            .filter { !commandFillers.contains(String($0)) }.count
-        return extra == 0 || (extra <= 1 && otherWords <= 3)
+        return startPhrases.contains { phrase in
+            guard t.contains(phrase) else { return false }
+            return t.replacingOccurrences(of: phrase, with: " ").split(separator: " ")
+                .allSatisfy { commandFillers.contains(String($0)) }
+        }
     }
 
     /// Fillers allowed after a stop phrase ("stop taking notes please", "notes band karo abhi").

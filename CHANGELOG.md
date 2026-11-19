@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (meeting notes, from the PR #76 review)
+- "Don't record this meeting" started recording: a start command may now contain only the phrase and filler words
+- New words after a stop phrase ("…stop transcribing, please") now restart the 1.5 s pause instead of stopping early
+- After a re-summary, Add to Reminders lost its tick (the action item's id changed), so the same reminder could be added twice
+- The storage-failure warning could be cut off by the next spoken notice
+- The Meetings tab named Hermes/OpenClaw as the summary writer (it's Apple Intelligence) and didn't update when the backend changed
+- Privacy notes now cover OpenAI-compatible base URLs, ChatGPT sign-in (chatgpt.com), the cloud request made before an Apple Intelligence fallback, the Hermes/OpenClaw fallback, and the spoken recap going to a cloud voice
+- Add to Reminders' fallback match after a re-summary now requires the same task, owner and due date, so another person's item can't be ticked
+- A stop flow still speaking a warning can no longer speak over, or summarise during, a meeting started meanwhile
+
+### Changed (docs)
+- README and SETUP: current Wearables Developer Center steps (Apple Team ID and Camera access fields), **Install/Update Glasses App** after registering, and a "Device unavailable" troubleshooting entry
+
 ### Fixed (meeting notes, from the PR #75 review)
 - A stop phrase in the middle of a sentence ("we should stop transcribing invoices manually") ended the meeting and cut the transcript; stop phrases now count only at the end of what was said, after a 1.5 s pause
 - A start phrase anywhere in a command ("remind me to record the meeting at 3") started recording; it now has to be the command itself, give or take a filler word
@@ -17,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The docs and settings now say plainly that the transcript text goes to a cloud backend for the summary (audio and transcription stay on the phone)
 
 ### Added
-- **Meeting notes** — "Ok Vision, start taking notes" (or **Start** in the new **Meetings** tab) transcribes a meeting on the phone and, when you say "stop taking notes", writes a summary with a title, decisions and action items using the current AI backend, then reads a short recap aloud. Transcripts never leave the phone: Apple's on-device `SpeechAnalyzer` on iOS 26+, on-device `SFSpeechRecognizer` for English otherwise
+- **Meeting notes** — "Ok Vision, start taking notes" (or **Start** in the new **Meetings** tab) transcribes a meeting on the phone and, when you say "stop taking notes", writes a summary with a title, decisions and action items using the current AI backend, then reads a short recap aloud. Speech recognition runs on the phone (Apple's on-device `SpeechAnalyzer` on iOS 26+, on-device `SFSpeechRecognizer` for English otherwise) and audio is never uploaded; the transcript text goes to the selected AI backend for the summary, which is a cloud provider for OpenAI, Grok and Gemini
 - **Meeting languages** — Settings → Voice → Meeting Notes → Language: English, **Hindi**, **Hinglish** (Apple's `mul_IN` multilingual model, for meetings that switch languages mid-sentence) and 10 more Indian languages, with Hindi and Hinglish stop phrases. A language's speech model downloads once, with progress; meeting audio is never sent to Apple's servers instead
 - **Meetings tab** — live transcript and timer, open action items across meetings, meetings grouped by day, search, share, re-summarise, delete, and **Add to Reminders** per action item
 - **`meetings` tool** on OpenAI, Grok, Gemini Live, Apple Intelligence and Gemma: "what did we decide this morning?", "what are my action items?"

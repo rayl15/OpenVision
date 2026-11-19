@@ -99,8 +99,13 @@ If you want to use Meta Ray-Ban glasses:
 1. Go to [wearables.developer.meta.com](https://wearables.developer.meta.com/)
 2. Create an account, an organization, and an app
 3. Add the **Meta Wearables** product
-4. Copy your **App ID** and **Client Token** from the dashboard
-5. Add both to `Config.xcconfig`, along with a URL scheme:
+4. In the project's **Configuration**, fill in your **Apple Team ID** (from 2.3) and turn on
+   **Camera access** with a short reason. These fields are newer than some older guides; without
+   them Meta never issues the glasses permission, and sessions die with "Device unavailable"
+5. Copy your **App ID** and **Client Token** from the dashboard
+6. Add both to `Config.xcconfig`, along with a URL scheme. Ignore the portal's code snippets:
+   the generated project uses `Config.xcconfig` as its base configuration and passes these values
+   into `Info.plist`, so nothing else needs editing or exporting:
 
 ```
 META_APP_ID = 1234567890
@@ -335,12 +340,18 @@ If you have Meta Ray-Ban glasses:
 3. Tap **Register with Meta AI**
 4. Follow the Meta AI app authentication flow
 5. Return to OpenVision when prompted
-6. Your glasses should now show as "Connected"
+6. Tap **Install/Update Glasses App** (once per pair of glasses — the glasses end camera sessions
+   until their developer component is installed)
+7. Your glasses should now show as "Connected"
 
 ### Troubleshooting Glasses
 
 - **Glasses not appearing**: Ensure Bluetooth is on and glasses are paired in iOS Settings
 - **Registration fails**: Check your Meta App ID in Config.xcconfig
+- **"Device unavailable" / "Session ended by device"**: add your Apple Team ID and turn on Camera
+  access in the Wearables Developer Center project (2.4), then Unregister → Register, then
+  **Install/Update Glasses App**. The SDK's own log names the missing piece:
+  `Library/Caches/MetaWearablesDAT/Logs/MetaWearablesDAT.log` in the app container
 - **Streaming issues**: Try disconnecting and reconnecting the glasses
 
 ---

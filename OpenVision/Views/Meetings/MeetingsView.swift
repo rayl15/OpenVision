@@ -7,7 +7,15 @@ import SwiftUI
 struct MeetingsView: View {
     @ObservedObject private var store = MeetingStore.shared
     @ObservedObject private var controller = MeetingNotesController.shared
+    @ObservedObject private var settingsManager = SettingsManager.shared
     @State private var searchText = ""
+
+    /// Who writes the summary: the selected backend, or Apple Intelligence for the agents
+    /// (Hermes, OpenClaw), which don't do one-off text.
+    private var summaryWriter: String {
+        let backend = settingsManager.settings.aiBackend
+        return [.hermes, .openClaw].contains(backend) ? "Apple Intelligence" : backend.displayName
+    }
 
     private var isSearching: Bool { !searchText.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -100,7 +108,7 @@ struct MeetingsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                Text("Language: \(MeetingLanguage.name(for: SettingsManager.shared.settings.meetingLanguage)). Or say “Ok Vision, start taking notes”. Transcription runs on your phone; when you stop, the transcript goes to your AI backend (\(SettingsManager.shared.settings.aiBackend.displayName)) to write the summary.")
+                Text("Language: \(MeetingLanguage.name(for: settingsManager.settings.meetingLanguage)). Or say “Ok Vision, start taking notes”. Transcription runs on your phone; when you stop, the transcript goes to \(summaryWriter) to write the summary.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
