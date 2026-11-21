@@ -19,6 +19,17 @@ enum MeetingNotesLogic {
         "notes start karo", "notes likhna shuru karo",
     ]
 
+    /// Phrases that start a fresh conversation. Longer variants come first so the whole
+    /// utterance can be checked without leaving a shorter phrase's prefix behind.
+    static let newConversationPhrases = [
+        "let's change subject", "change the subject", "change subject",
+        "let's start a new conversation", "start a new conversation", "start new conversation", "new conversation",
+        "let's start a new topic", "start a new topic", "start new topic", "new topic",
+        "let's start a new chat", "start a new chat", "start new chat", "new chat",
+        "let's start over", "start over",
+        "clear the conversation", "clear conversation", "clear context",
+    ]
+
     /// Phrases that end meeting notes, heard in the meeting transcript itself.
     static let stopPhrases = [
         "stop taking notes", "stop the notes", "stop meeting notes", "stop the meeting notes",
@@ -51,6 +62,18 @@ enum MeetingNotesLogic {
     static func isStartCommand(_ text: String) -> Bool {
         let t = normalized(text)
         return startPhrases.contains { phrase in
+            guard t.contains(phrase) else { return false }
+            return t.replacingOccurrences(of: phrase, with: " ").split(separator: " ")
+                .allSatisfy { commandFillers.contains(String($0)) }
+        }
+    }
+
+    /// A new-topic phrase is the whole command, allowing only wake-word and politeness fillers.
+    /// This avoids clearing context for ordinary questions such as "start over the explanation".
+    static func isNewConversationCommand(_ text: String, isFinal: Bool = true) -> Bool {
+        guard isFinal else { return false }
+        let t = normalized(text)
+        return newConversationPhrases.contains { phrase in
             guard t.contains(phrase) else { return false }
             return t.replacingOccurrences(of: phrase, with: " ").split(separator: " ")
                 .allSatisfy { commandFillers.contains(String($0)) }
@@ -91,7 +114,9 @@ enum MeetingNotesLogic {
 
     /// Lowercased, punctuation turned into spaces, whitespace collapsed.
     static func normalized(_ text: String) -> String {
-        let mapped = text.lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
+        let normalizedApostrophes = text.replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "‘", with: "'")
+        let mapped = normalizedApostrophes.lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
         return String(mapped).split(separator: " ").joined(separator: " ")
     }
 

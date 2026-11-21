@@ -38,6 +38,41 @@ final class MeetingNotesTests: XCTestCase {
         XCTAssertFalse(MeetingNotesLogic.isStartCommand("record this meeting tomorrow"))
     }
 
+    func testNewConversationPhrases() {
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("new topic"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("Ok Vision, new topic"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("let's change subject"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("let’s change subject"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("let's start over"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("let’s start over"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("please start over now"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("start a new conversation"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("okay vision, start a new chat please"))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("clear context"))
+    }
+
+    func testGeminiTranscriptionFragmentsPreserveSpacesAndMergeOverlaps() {
+        XCTAssertEqual(GeminiLiveService.mergeInputTranscription("", with: "new "), "new ")
+        XCTAssertEqual(GeminiLiveService.mergeInputTranscription("new ", with: "topic"), "new topic")
+        XCTAssertEqual(GeminiLiveService.mergeInputTranscription("new ", with: "new topic"), "new topic")
+        XCTAssertEqual(GeminiLiveService.mergeInputTranscription("new top", with: "topic"), "new topic")
+        XCTAssertEqual(GeminiLiveService.mergeInputTranscription("new topic", with: "new"), "new topic")
+    }
+
+    func testNewConversationCommandRequiresCompletedTranscript() {
+        XCTAssertFalse(MeetingNotesLogic.isNewConversationCommand("new topic", isFinal: false))
+        XCTAssertTrue(MeetingNotesLogic.isNewConversationCommand("new topic", isFinal: true))
+    }
+
+    func testNewConversationPhraseMustBeTheWholeCommand() {
+        XCTAssertFalse(MeetingNotesLogic.isNewConversationCommand("Can you start over the explanation"))
+        XCTAssertFalse(MeetingNotesLogic.isNewConversationCommand("What's a new conversation starter"))
+        XCTAssertFalse(MeetingNotesLogic.isNewConversationCommand("Let's discuss a new topic tomorrow"))
+        XCTAssertFalse(MeetingNotesLogic.isNewConversationCommand("Can we change the subject of this meeting"))
+        XCTAssertFalse(MeetingNotesLogic.isNewConversationCommand("Please start over after you finish"))
+        XCTAssertFalse(MeetingNotesLogic.isNewConversationCommand("what is the new chat feature"))
+    }
+
     // MARK: - Stop phrase
 
     func testNoStopPhrase() {

@@ -55,6 +55,9 @@ final class VoiceAgentViewModel: ObservableObject {
     /// The live-video backend currently driving audio/video (Gemini or OpenAI Realtime).
     /// Set when live video mode starts; used by stop/callbacks so both backends route correctly.
     private var activeLiveService: (any LiveVideoService)?
+    /// Prevents duplicate realtime transcripts from resetting the same conversation twice.
+    private var isResettingLiveConversation = false
+    private var conversationGeneration = 0
 
     /// Sentence-streaming TTS (Apple only): how many characters of the streamed reply have
     /// already been handed to the speech queue, and whether a streamed utterance is open.
@@ -628,6 +631,15 @@ final class VoiceAgentViewModel: ObservableObject {
                 return
             }
 
+            if MeetingNotesLogic.isNewConversationCommand(command) {
+                let now = Date()
+                if command == self.lastProcessedCommand && now.timeIntervalSince(self.lastProcessedAt) < 4 { return }
+                self.lastProcessedCommand = command
+                self.lastProcessedAt = now
+                Task { await self.startNewConversation() }
+                return
+            }
+
             // An answer to a question the agent asked mid-turn, not a new command.
             if self.pendingAnswer != nil, self.settingsManager.settings.aiBackend != .hermes {
                 self.cancelPendingAnswer()   // backend switched mid-question: this is a new command
@@ -894,6 +906,15 @@ final class VoiceAgentViewModel: ObservableObject {
             return
         }
 
+        if MeetingNotesLogic.isNewConversationCommand(command) {
+            let now = Date()
+            if command == lastProcessedCommand && now.timeIntervalSince(lastProcessedAt) < 4 { return }
+            lastProcessedCommand = command
+            lastProcessedAt = now
+            await startNewConversation()
+            return
+        }
+
         // Check for "stop" command - stops TTS and waits for next command.
         // Matched on WORDS, not substrings: `.contains("stop")` treated "what's on the desktop"
         // as a stop command and killed the session mid-question.
@@ -1044,6 +1065,59 @@ final class VoiceAgentViewModel: ObservableObject {
             errorMessage = "Failed to send command: \(error.localizedDescription)"
             agentState = isSessionActive ? .listening : .idle
         }
+    }
+
+    /// Clear local history and give any stateful backend a genuinely fresh session.
+    private func startNewConversation() async {
+        guard !isResettingLiveConversation else { return }
+        conversationGeneration &+= 1
+        isResettingLiveConversation = true
+        defer { isResettingLiveConversation = false }
+
+        if settingsManager.settings.aiBackend == .hermes,
+           settingsManager.settings.hermesAuthMode == .password {
+            HermesGatewayClient.shared.startNewConversation()
+        } else {
+            ConversationManager.shared.startNewConversation()
+            ConversationContext.shared.clear()
+            if settingsManager.settings.aiBackend == .openClaw {
+                OpenClawService.shared.startNewConversation()
+            }
+        }
+        AppleFoundationService.shared.resetContext()
+
+        cancelPendingAnswer()
+        ttsService.stop()
+        NeuralSpeech.stopAll()
+        audioPlayback.stop()
+        ttsStreaming = false
+        ttsStreamSpokenChars = 0
+        commandTurnActive = false
+        historyAwaitingReply = false
+        historyLastLiveReply = ""
+        userTranscript = ""
+        aiTranscript = ""
+
+        if let activeLiveService {
+            do {
+                try await activeLiveService.reconnect()
+            } catch {
+                errorMessage = "Couldn't reconnect the live session: \(error.localizedDescription)"
+                await stopLiveVideoMode()
+                speakNotice("Starting fresh. Live video has stopped because the connection could not be restored.")
+                return
+            }
+        } else if settingsManager.settings.aiBackend == .geminiLive {
+            do {
+                try await geminiLive.reconnect()
+            } catch {
+                errorMessage = "Couldn't reconnect the Gemini session: \(error.localizedDescription)"
+                speakNotice("Starting fresh. I couldn't reconnect to Gemini.")
+                return
+            }
+        }
+
+        speakNotice("Starting fresh.")
     }
 
     // MARK: - Live Video Mode
@@ -1631,10 +1705,20 @@ final class VoiceAgentViewModel: ObservableObject {
         }
 
         // Transcription updates - also check for stop commands
-        service.onInputTranscription = { [weak self] text in
+        service.onInputTranscription = { [weak self] text, isFinal in
             Task { @MainActor in
                 guard let self else { return }
                 self.userTranscript = text
+                guard isFinal else { return }
+
+                if MeetingNotesLogic.isNewConversationCommand(text) {
+                    let now = Date()
+                    if text == self.lastProcessedCommand && now.timeIntervalSince(self.lastProcessedAt) < 4 { return }
+                    self.lastProcessedCommand = text
+                    self.lastProcessedAt = now
+                    await self.startNewConversation()
+                    return
+                }
 
                 // Check for stop video commands in what the user said
                 let lowerText = text.lowercased()
@@ -1675,7 +1759,7 @@ final class VoiceAgentViewModel: ObservableObject {
         service.onDisconnected = { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
-                if self.isLiveVideoMode {
+                if self.isLiveVideoMode && !self.isResettingLiveConversation {
                     print("[VoiceAgent] Live backend disconnected unexpectedly")
                     await self.stopLiveVideoMode()
                 }
@@ -1936,6 +2020,7 @@ final class VoiceAgentViewModel: ObservableObject {
     /// Shared handling for the on-device text models (Gemma / Apple Foundation): one agentic
     /// generation that routes a face action, a web search, or a direct spoken answer.
     private func handleLocalCommand(_ command: String, llm: LocalTextLLM, isPhotoCommand: Bool) async {
+        let generation = conversationGeneration
         if isPhotoCommand {
             // SmolVLM2 handles photos fully on-device; other local models are text-only
             // (Gemma E2B's vision hit the jetsam limit — see GemmaLocalModel.supportsOnDeviceVision).
@@ -1958,7 +2043,7 @@ final class VoiceAgentViewModel: ObservableObject {
             ttsStreaming = false
             ttsStreamSpokenChars = 0
             result = await llm.routeCommandStreaming(command) { [weak self] cumulative in
-                guard let self else { return }
+                guard let self, self.conversationGeneration == generation else { return }
                 // Telemetry: the model has started producing. Marked before the JSON-route guard
                 // below so a structured route still records its think time.
                 MetricsCollector.shared.markFirstToken()
@@ -1971,6 +2056,7 @@ final class VoiceAgentViewModel: ObservableObject {
             // markGenerationDone and `ttft` legitimately covers the whole generation.
             result = await llm.routeCommand(command)
         }
+        guard generation == conversationGeneration else { return }
         // The local route is not delivered through AIBackend.onAgentMessage (it returns a
         // RouteResult instead), so generation-done has to be marked here or the whole stage
         // breakdown after commit goes missing.
@@ -1981,16 +2067,24 @@ final class VoiceAgentViewModel: ObservableObject {
             // Safety: if we mis-started streaming (answer contained a stray "{"), cancel it.
             if ttsStreaming { ttsService.stop(); ttsStreaming = false }
             await handleFaceIntent(intent)
+            guard generation == conversationGeneration else { return }
         case .webSearch(let query):
             if ttsStreaming { ttsService.stop(); ttsStreaming = false }
             NSLog("[OV] web search: \"%@\"", query)
             var result = await WebSearchService.search(query)
+            guard generation == conversationGeneration else { return }
             // Agentic retry: if the first query found nothing, let the model reformulate once.
-            if result.isEmpty, let better = await llm.reformulateSearchQuery(question: command, triedQuery: query) {
-                NSLog("[OV] web search retry: \"%@\"", better)
-                result = await WebSearchService.search(better)
+            if result.isEmpty {
+                let better = await llm.reformulateSearchQuery(question: command, triedQuery: query)
+                guard generation == conversationGeneration else { return }
+                if let better {
+                    NSLog("[OV] web search retry: \"%@\"", better)
+                    result = await WebSearchService.search(better)
+                    guard generation == conversationGeneration else { return }
+                }
             }
             let answer = await llm.answerWithSearchResult(question: command, result: result)
+            guard generation == conversationGeneration else { return }
             speakResponse(answer)   // separate generation — not streamed here
             ConversationContext.shared.record(user: command, assistant: answer)
         case .answer(let text):
@@ -2004,6 +2098,7 @@ final class VoiceAgentViewModel: ObservableObject {
         // Generation finishes well before the voice does (several sentences stay queued in TTS).
         // Don't stomp the state back to .listening while the reply is still being spoken — the
         // TTS-finished observers handle that transition at the right moment.
+        guard generation == conversationGeneration else { return }
         if !ttsService.isSpeaking && !NeuralSpeech.isAnySpeaking {
             agentState = isSessionActive ? .listening : .idle
         }
