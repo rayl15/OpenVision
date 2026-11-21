@@ -276,6 +276,13 @@ final class HermesGatewayClient {
         "/restart", "/update", "/yolo", "/approvals", "/quit", "/import", "/reload", "/reload-mcp",
     ]
 
+    /// Start a fresh OpenVision and Hermes conversation, matching the existing /new behavior.
+    func startNewConversation() {
+        ConversationManager.shared.startNewConversation()
+        ConversationContext.shared.clear()
+        runtimeSessionId = nil
+    }
+
     /// Run a spoken slash command and return what to say.
     func runSlash(_ spoken: String) async throws -> String {
         guard let base = HermesDashboard.base(from: settings.hermesDashboardURL),
@@ -294,10 +301,7 @@ final class HermesGatewayClient {
         NSLog("[HermesGW] slash %@ (argument: %@)", match.command, match.argument.isEmpty ? "-" : "yes")
 
         if match.command == "/new" {
-            // A new chat, OpenVision's way: a new History conversation gets its own Hermes chat.
-            ConversationManager.shared.startNewConversation()
-            ConversationContext.shared.clear()
-            runtimeSessionId = nil
+            startNewConversation()
             return "Started a new chat."
         }
 

@@ -16,7 +16,7 @@ import AVFoundation
 @MainActor
 protocol LiveVideoService: AnyObject {
     var onAudioReceived: ((Data) -> Void)? { get set }
-    var onInputTranscription: ((String) -> Void)? { get set }
+    var onInputTranscription: ((String, Bool) -> Void)? { get set }
     var onOutputTranscription: ((String) -> Void)? { get set }
     var onTurnComplete: (() -> Void)? { get set }
     var onDisconnected: (() -> Void)? { get set }
@@ -28,6 +28,7 @@ protocol LiveVideoService: AnyObject {
 
     func connect() async throws
     func disconnect() async
+    func reconnect() async throws
     func sendAudio(data: Data)
     func sendVideoFrame(imageData: Data)
 }
@@ -65,7 +66,7 @@ final class OpenAIRealtimeService: ObservableObject, LiveVideoService {
     // MARK: - Callbacks
 
     var onAudioReceived: ((Data) -> Void)?
-    var onInputTranscription: ((String) -> Void)?
+    var onInputTranscription: ((String, Bool) -> Void)?
     var onOutputTranscription: ((String) -> Void)?
     var onTurnComplete: (() -> Void)?
     var onDisconnected: (() -> Void)?
@@ -147,6 +148,14 @@ final class OpenAIRealtimeService: ObservableObject, LiveVideoService {
         onConnectionStateChanged?(connectionState)
         closeWebSocket()
         onDisconnected?()
+    }
+
+    /// Replace the server-side conversation without ending live video mode.
+    func reconnect() async throws {
+        connectionState = .disconnected
+        onConnectionStateChanged?(connectionState)
+        closeWebSocket()
+        try await connect()
     }
 
     /// Derive the Realtime WebSocket URL from the configured OpenAI base URL.
@@ -349,11 +358,13 @@ final class OpenAIRealtimeService: ObservableObject, LiveVideoService {
                 onOutputTranscription?(text)
             }
 
-        case "conversation.item.input_audio_transcription.completed",
-             "conversation.item.input_audio_transcription.delta":
-            // The user's speech, transcribed. `transcript` on completed, `delta` while streaming.
-            let text = (json["transcript"] as? String) ?? (json["delta"] as? String) ?? ""
-            if !text.isEmpty { onInputTranscription?(text) }
+        case "conversation.item.input_audio_transcription.completed":
+            let text = json["transcript"] as? String ?? ""
+            if !text.isEmpty { onInputTranscription?(text, true) }
+
+        case "conversation.item.input_audio_transcription.delta":
+            let text = json["delta"] as? String ?? ""
+            if !text.isEmpty { onInputTranscription?(text, false) }
 
         case "response.done", "response.output_audio.done":
             isModelSpeaking = false
